@@ -5,13 +5,21 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
 
+import java.util.Random;
+
 public class Cab {
     public enum CabState {
         AVAILABLE, COMMITTED,
-        GIVING_RIDE, SIGNED_OUT;
+        GIVING_RIDE, SIGNED_OUT
     }
 
     String cabId;
+    /**
+     * each cab maintains a reply id. All
+     * the messages sent by this cab will contain
+     * the unique monotonically increasing msgId.
+      */
+    long cabReplyId;
 
     /**
      *  If the cab is interested
@@ -96,22 +104,27 @@ public class Cab {
 
     public static final class NumRideResponse implements CabResponse{
         long response;
+        long cabReplyId;
 
-        public NumRideResponse(long response) {
+        public NumRideResponse(long response, long cabReplyId) {
             this.response = response;
+            this.cabReplyId = cabReplyId;
         }
     }
 
     public static final class RequestRideResponse implements FulfillRide.Command {
         boolean response;
+        long cabReplyId;
 
-        public RequestRideResponse(boolean response) {
+        public RequestRideResponse(boolean response, long cabReplyId) {
             this.response = response;
+            this.cabReplyId = cabReplyId;
         }
     }
 
     public Cab(String cabId) {
         this.cabId = cabId;
+        this.cabReplyId = 0;
     }
 
     public Behavior<Cab.CabCommand> cab(){
@@ -146,13 +159,13 @@ public class Cab {
         state = CabState.AVAILABLE;
         lastKnownLocation = destinationLocation;
         rideCnt += 1;
-        fulFillRideActorRef.tell(new FulfillRide.RideEnded());
+        fulFillRideActorRef.tell(new FulfillRide.RideEnded(cabReplyId++));
         return cab();
     }
 
     public Behavior<Cab.CabCommand> onRequestRide(RequestRide requestRide){
         if(state!=CabState.AVAILABLE){
-            requestRide.replyTo.tell(new RequestRideResponse(false));
+            requestRide.replyTo.tell(new RequestRideResponse(false, cabReplyId++));
             return cab();
         }
 
@@ -163,10 +176,10 @@ public class Cab {
             destinationLocation = requestRide.destinationLoc;
             rideId = requestRide.rideId;
             fulFillRideActorRef = requestRide.replyTo;
-            requestRide.replyTo.tell(new RequestRideResponse(true));
+            requestRide.replyTo.tell(new RequestRideResponse(true, cabReplyId++));
         }else{
             isInterested = true;
-            requestRide.replyTo.tell(new RequestRideResponse(false));
+            requestRide.replyTo.tell(new RequestRideResponse(false, cabReplyId++));
         }
 
         return cab();
@@ -177,16 +190,24 @@ public class Cab {
         lastKnownLocation = signIn.initialPos;
         rideCnt = 0;
         isInterested = true;
+        Random random = new Random();
+        Globals.rideServiceRefs.get(random.nextInt(Globals.rideServiceRefs.size())).tell(
+                new RideService.CabSignsIn(cabId, signIn.initialPos, cabReplyId++)
+        );
         return cab();
     }
 
     public Behavior<Cab.CabCommand> onSignOut(SignOut signOut){
         state = CabState.SIGNED_OUT;
+        Random random = new Random();
+        Globals.rideServiceRefs.get(random.nextInt(Globals.rideServiceRefs.size())).tell(
+                new RideService.CabSignsOut(cabId, cabReplyId++)
+        );
         return cab();
     }
 
     public Behavior<Cab.CabCommand> onReset(Reset reset){
-        reset.replyTo.tell(new NumRideResponse(rideCnt));
+        reset.replyTo.tell(new NumRideResponse(rideCnt, cabReplyId++));
         if(state == CabState.GIVING_RIDE)
             onRideEnded(new RideEnded());
         if(state != CabState.SIGNED_OUT)
@@ -195,7 +216,7 @@ public class Cab {
     }
 
     public Behavior<Cab.CabCommand> onNumRides(NumRides numRides){
-        numRides.replyTo.tell(new NumRideResponse(rideCnt));
+        numRides.replyTo.tell(new NumRideResponse(rideCnt, cabReplyId++));
         return cab();
     }
 
