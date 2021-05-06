@@ -25,9 +25,9 @@ public class Wallet {
 
     public static final class DeductBalance implements WalletCommand {
         public final long amount;
-        public final ActorRef<ResponseBalance> replyTo;
+        public final ActorRef<FulfillRide.Command> replyTo;
 
-        public DeductBalance(long amount, ActorRef<ResponseBalance> replyTo) {
+        public DeductBalance(long amount, ActorRef<FulfillRide.Command> replyTo) {
             this.amount = amount;
             this.replyTo = replyTo;
         }
@@ -49,7 +49,7 @@ public class Wallet {
         }
     }
 
-    public static class ResponseBalance {
+    public static class ResponseBalance implements FulfillRide.Command{
         long balance;
         public ResponseBalance(long balance) {this.balance = balance;}
 
@@ -97,7 +97,7 @@ public class Wallet {
     }
 
     private Behavior<WalletCommand> onDeductBalance(DeductBalance deductBalance) {
-        ActorRef<ResponseBalance> client = deductBalance.replyTo;
+        ActorRef<FulfillRide.Command> client = deductBalance.replyTo;
         if (deductBalance.amount > 0 && balance >= deductBalance.amount) {
             balance -= deductBalance.amount;
             client.tell(new ResponseBalance(balance));

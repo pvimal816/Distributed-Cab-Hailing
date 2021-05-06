@@ -33,7 +33,7 @@ public class WalletTester {
     @Test
     public void deductBalanceTest(){
         ActorRef<Wallet.WalletCommand> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
-        TestProbe<Wallet.ResponseBalance> probe = testKit.createTestProbe();
+        TestProbe<FulfillRide.Command> probe = testKit.createTestProbe();
         wallet.tell(new Wallet.DeductBalance(100, probe.ref()));
         probe.expectMessage(new Wallet.ResponseBalance(900));
         testKit.stop(wallet);

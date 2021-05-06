@@ -6,7 +6,6 @@ import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
 import pods.cabs.Cab.CabState;
 
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Comparator;
 
@@ -42,14 +41,15 @@ public class FulfillRide {
     long destinationLoc;
     long rideId;
     String custId;
+    long fare;
+    String chosenCabId;
 
     ActorRef<RideService.RideResponse> replyTo;
 
     ActorContext<Command> context;
-    ActorContext<Wallet.ResponseBalance>
+//    ActorContext<Wallet.ResponseBalance>
 
     interface Command {}
-
 
     public FulfillRide(ActorContext<Command> context, ArrayList<CabInfo> cabInfos) {
         this.context = context;
@@ -63,7 +63,7 @@ public class FulfillRide {
         String custId;
         ActorRef<RideService.RideResponse> replyTo;
 
-        public RequestRide(long sourceLoc, long destinationLoc, long rideId, String custId
+        public RequestRide(long sourceLoc, long destinationLoc, long rideId, String custId,
                            ActorRef<RideService.RideResponse> replyTo) {
             this.sourceLoc = sourceLoc;
             this.destinationLoc = destinationLoc;
@@ -73,15 +73,9 @@ public class FulfillRide {
         }
     }
 
-    public static final class RequestRideResponse implements FulfillRide.Command {
-        boolean response;
-
-        public RequestRideResponse(boolean response) {
-            this.response = response;
+    public static final class RideEnded implements FulfillRide.Command {
+        public RideEnded() {
         }
-    }
-
-    public final static class RideEnded implements Command{
     }
 
     public static Behavior<Command> create(ArrayList<CabInfo> cabInfos){
@@ -93,7 +87,8 @@ public class FulfillRide {
         return Behaviors.receive(Command.class)
                 .onMessage(RequestRide.class, this::onRequestRide)
                 .onMessage(RideEnded.class, this::onRideEnded)
-                .onMessage(RequestRideResponse.class, this::onRequestRideResponse)
+                .onMessage(Wallet.ResponseBalance.class, this::onResponseBalance)
+                .onMessage(Cab.RequestRideResponse.class, this::onRequestRideResponse)
                 .build();
     }
 
@@ -119,20 +114,43 @@ public class FulfillRide {
         return fulFillRide();
     }
 
-    public Behavior<Command> onRequestRideResponse(RequestRideResponse requestRideResponse){
+    public Behavior<Command> onRequestRideResponse(Cab.RequestRideResponse requestRideResponse){
         if(requestRideResponse.response){
-          //TODO: try to deduct balance
             CabInfo cabInfo = nearestCabs.get(0);
-            long fare = Math.abs(cabInfo.lastKnownLocation - sourceLoc) * 10;
+            chosenCabId = cabInfo.cabId;
+            fare = Math.abs(cabInfo.lastKnownLocation - sourceLoc) * 10;
             Globals.walletRefs.get(custId).tell(new Wallet.DeductBalance(fare, context.getSelf()));
-
+        } else {
+            nearestCabs.remove(0);
+            if(nearestCabs.isEmpty()){
+                replyTo.tell(new RideService.RideResponse(-1, 0, 0, null));
+                return Behaviors.stopped();
+            }
+            ActorRef<Cab.CabCommand> cab = Globals.cabRefs.get(nearestCabs.get(0).cabId);
+            cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
         }
         return fulFillRide();
     }
 
-    public Behavior<Command> onRideEnded(RideEnded rideEnded){
-
+    public Behavior<Command> onResponseBalance(Wallet.ResponseBalance responseBalance){
+        if(responseBalance.balance == -1) {
+            // not enough balance in wallet
+            // notify cab to cancel the ride
+            Globals.cabRefs.get(chosenCabId).tell(new Cab.RideCanceled());
+            // notify rideService instance of failure
+            replyTo.tell(new RideService.RideResponse(-1, 0, 0, null));
+            return Behaviors.stopped();
+        }
+        // notify cab to start the ride
+        Globals.cabRefs.get(chosenCabId).tell(new Cab.RideStarted());
+        // notify rideService instance of success
+        replyTo.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf()));
         return fulFillRide();
+    }
+
+    public Behavior<Command> onRideEnded(RideEnded rideEnded){
+        replyTo.tell(new RideService.RideEnded(chosenCabId));
+        return Behaviors.stopped();
     }
 
 }

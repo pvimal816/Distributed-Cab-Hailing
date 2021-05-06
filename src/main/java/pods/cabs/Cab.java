@@ -12,22 +12,25 @@ public class Cab {
     }
 
     String cabId;
-    /* If the cab is interested
+
+    /**
+     *  If the cab is interested
      *  in taking the next ride request
      * */
     boolean isInterested;
     CabState state;
     long lastKnownLocation;
+    long rideCnt;
 
-    /*
+    /**
+     *
      * All following fields stores
-     * information about ongoing ride.
+     * information about the ongoing ride.
      * */
 
     long rideId;
     long sourceLocation;
     long destinationLocation;
-    long rideCnt;
     ActorRef<FulfillRide.Command> fulFillRideActorRef;
 
     interface CabCommand {}
@@ -57,7 +60,7 @@ public class Cab {
         }
     }
 
-    public static final class RideEnded implements CabCommand {
+    public final static class RideEnded implements CabCommand {
         public RideEnded() {
         }
     }
@@ -99,7 +102,13 @@ public class Cab {
         }
     }
 
+    public static final class RequestRideResponse implements FulfillRide.Command {
+        boolean response;
 
+        public RequestRideResponse(boolean response) {
+            this.response = response;
+        }
+    }
 
     public Cab(String cabId) {
         this.cabId = cabId;
@@ -142,16 +151,24 @@ public class Cab {
     }
 
     public Behavior<Cab.CabCommand> onRequestRide(RequestRide requestRide){
-        if(state == CabState.AVAILABLE && isInterested){
+        if(state!=CabState.AVAILABLE){
+            requestRide.replyTo.tell(new RequestRideResponse(false));
+            return cab();
+        }
+
+        if(isInterested){
             isInterested = false;
             state = CabState.COMMITTED;
             sourceLocation = requestRide.sourceLoc;
             destinationLocation = requestRide.destinationLoc;
             rideId = requestRide.rideId;
             fulFillRideActorRef = requestRide.replyTo;
-            requestRide.replyTo.tell(new FulfillRide.RequestRideResponse(true));
+            requestRide.replyTo.tell(new RequestRideResponse(true));
+        }else{
+            isInterested = true;
+            requestRide.replyTo.tell(new RequestRideResponse(false));
         }
-        requestRide.replyTo.tell(new FulfillRide.RequestRideResponse(false));
+
         return cab();
     }
 
@@ -181,5 +198,8 @@ public class Cab {
         numRides.replyTo.tell(new NumRideResponse(rideCnt));
         return cab();
     }
+
+    //TODO: change the return values of handlers so that only
+    // legal messages gets accepted in each state.
 
 }
