@@ -19,7 +19,7 @@ public class Cab {
      * the messages sent by this cab will contain
      * the unique monotonically increasing msgId.
       */
-    long cabReplyId;
+    long currentTimestamp;
 
     /**
      *  If the cab is interested
@@ -104,27 +104,27 @@ public class Cab {
 
     public static final class NumRideResponse implements CabResponse{
         long response;
-        long cabReplyId;
+        long timestamp;
 
-        public NumRideResponse(long response, long cabReplyId) {
+        public NumRideResponse(long response, long timestamp) {
             this.response = response;
-            this.cabReplyId = cabReplyId;
+            this.timestamp = timestamp;
         }
     }
 
     public static final class RequestRideResponse implements FulfillRide.Command {
         boolean response;
-        long cabReplyId;
+        long timestamp;
 
-        public RequestRideResponse(boolean response, long cabReplyId) {
+        public RequestRideResponse(boolean response, long timestamp) {
             this.response = response;
-            this.cabReplyId = cabReplyId;
+            this.timestamp = timestamp;
         }
     }
 
     public Cab(String cabId) {
         this.cabId = cabId;
-        this.cabReplyId = 0;
+        this.currentTimestamp = 0;
     }
 
     public Behavior<Cab.CabCommand> cab(){
@@ -159,13 +159,13 @@ public class Cab {
         state = CabState.AVAILABLE;
         lastKnownLocation = destinationLocation;
         rideCnt += 1;
-        fulFillRideActorRef.tell(new FulfillRide.RideEnded(cabReplyId++));
+        fulFillRideActorRef.tell(new FulfillRide.RideEnded(currentTimestamp++));
         return cab();
     }
 
     public Behavior<Cab.CabCommand> onRequestRide(RequestRide requestRide){
         if(state!=CabState.AVAILABLE){
-            requestRide.replyTo.tell(new RequestRideResponse(false, cabReplyId++));
+            requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
             return cab();
         }
 
@@ -176,10 +176,10 @@ public class Cab {
             destinationLocation = requestRide.destinationLoc;
             rideId = requestRide.rideId;
             fulFillRideActorRef = requestRide.replyTo;
-            requestRide.replyTo.tell(new RequestRideResponse(true, cabReplyId++));
+            requestRide.replyTo.tell(new RequestRideResponse(true, currentTimestamp++));
         }else{
             isInterested = true;
-            requestRide.replyTo.tell(new RequestRideResponse(false, cabReplyId++));
+            requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
         }
 
         return cab();
@@ -192,7 +192,7 @@ public class Cab {
         isInterested = true;
         Random random = new Random();
         Globals.rideServiceRefs.get(random.nextInt(Globals.rideServiceRefs.size())).tell(
-                new RideService.CabSignsIn(cabId, signIn.initialPos, cabReplyId++)
+                new RideService.CabSignsIn(cabId, signIn.initialPos, currentTimestamp++)
         );
         return cab();
     }
@@ -200,14 +200,14 @@ public class Cab {
     public Behavior<Cab.CabCommand> onSignOut(SignOut signOut){
         state = CabState.SIGNED_OUT;
         Random random = new Random();
-        Globals.rideServiceRefs.get(random.nextInt(Globals.rideServiceRefs.size())).tell(
-                new RideService.CabSignsOut(cabId, cabReplyId++)
+        Globals.rideServiceRefs.get((long)random.nextInt(Globals.rideServiceRefs.size())).tell(
+                new RideService.CabSignsOut(cabId, currentTimestamp++)
         );
         return cab();
     }
 
     public Behavior<Cab.CabCommand> onReset(Reset reset){
-        reset.replyTo.tell(new NumRideResponse(rideCnt, cabReplyId++));
+        reset.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
         if(state == CabState.GIVING_RIDE)
             onRideEnded(new RideEnded());
         if(state != CabState.SIGNED_OUT)
@@ -216,7 +216,7 @@ public class Cab {
     }
 
     public Behavior<Cab.CabCommand> onNumRides(NumRides numRides){
-        numRides.replyTo.tell(new NumRideResponse(rideCnt, cabReplyId++));
+        numRides.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
         return cab();
     }
 

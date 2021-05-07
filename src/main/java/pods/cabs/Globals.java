@@ -9,5 +9,5 @@ import java.util.Map;
 public class Globals {
     public static Map<String, ActorRef<Cab.CabCommand>> cabRefs;
     public static Map<String, ActorRef<Wallet.WalletCommand>> walletRefs;
-    public static ArrayList<ActorRef<RideService.RideServiceCommand>> rideServiceRefs;
+    public static Map<Long, ActorRef<RideService.RideServiceCommand>> rideServiceRefs;
 }

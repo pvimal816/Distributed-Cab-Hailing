@@ -34,7 +34,7 @@ public class FulfillRide {
     String custId;
     long fare;
     String chosenCabId;
-    long chosenCabReplyId;
+    long chosenCabLatestTimestamp;
 
     ActorRef<RideService.RideServiceCommand> parentRef;
     ActorRef<RideService.RideResponse> replyTo;
@@ -70,9 +70,9 @@ public class FulfillRide {
     }
 
     public static final class RideEnded implements FulfillRide.Command {
-        long cabReplyId;
-        public RideEnded(long cabReplyId) {
-            this.cabReplyId = cabReplyId;
+        long timestamp;
+        public RideEnded(long timestamp) {
+            this.timestamp = timestamp;
         }
     }
 
@@ -117,7 +117,7 @@ public class FulfillRide {
             CabInfo cabInfo = nearestCabs.get(0);
             chosenCabId = cabInfo.cabId;
             fare = Math.abs(cabInfo.lastKnownLocation - sourceLoc) * 10;
-            chosenCabReplyId = requestRideResponse.cabReplyId;
+            chosenCabLatestTimestamp = requestRideResponse.timestamp;
             Globals.walletRefs.get(custId).tell(new Wallet.DeductBalance(fare, context.getSelf()));
         } else {
             nearestCabs.remove(0);
@@ -144,15 +144,15 @@ public class FulfillRide {
         // notify cab to start the ride
         Globals.cabRefs.get(chosenCabId).tell(new Cab.RideStarted());
         // notify request maker of success
-        replyTo.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf(), chosenCabReplyId));
+        replyTo.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf(), chosenCabLatestTimestamp));
         // notify ride service of success so that it can update the state of the cab in it's cache
-        parentRef.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf(), chosenCabReplyId));
+        parentRef.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf(), chosenCabLatestTimestamp));
 
         return fulFillRide();
     }
 
     public Behavior<Command> onRideEnded(RideEnded rideEnded){
-        parentRef.tell(new RideService.RideEnded(chosenCabId, rideEnded.cabReplyId));
+        parentRef.tell(new RideService.RideEnded(chosenCabId, rideEnded.timestamp, destinationLoc));
         return Behaviors.stopped();
     }
 
