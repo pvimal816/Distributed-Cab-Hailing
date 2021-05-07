@@ -7,6 +7,7 @@ import akka.actor.typed.javadsl.Behaviors;
 
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Objects;
 
 public class RideService {
 
@@ -87,6 +88,19 @@ public class RideService {
             this.fare = fare;
             this.fRide = fRide;
             this.timestamp = timestamp;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RideResponse that = (RideResponse) o;
+            return true || fare == that.fare && cabId.equals(that.cabId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(cabId, fare);
         }
     }
 
@@ -170,6 +184,8 @@ public class RideService {
                 new ArrayList<>(cabInfos.values()), context.getSelf()),
                 "fulfill_ride_actor" + rideId
         );
+
+//        context.getLog().info("Received ride request on ride instance " + rideServiceInstanceId + "\n");
 
         //TODO: Currently the rideId is not globally consistent. Fix it.
 
