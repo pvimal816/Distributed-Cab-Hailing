@@ -103,6 +103,7 @@ public class FulfillRide {
             return Behaviors.stopped();
         }
         // copy upto three nearest cabs into nearestCabs
+        nearestCabs = new ArrayList<>();
         nearestCabs.add(cabInfos.get(0));
         if(cabInfos.size()>1) nearestCabs.add(cabInfos.get(1));
         if(cabInfos.size()>2) nearestCabs.add(cabInfos.get(2));
@@ -116,7 +117,8 @@ public class FulfillRide {
         if(requestRideResponse.response){
             CabInfo cabInfo = nearestCabs.get(0);
             chosenCabId = cabInfo.cabId;
-            fare = Math.abs(cabInfo.lastKnownLocation - sourceLoc) * 10;
+            fare = (Math.abs(cabInfo.lastKnownLocation - sourceLoc) +
+                    Math.abs(destinationLoc - sourceLoc)) * 10;
             chosenCabLatestTimestamp = requestRideResponse.timestamp;
             Globals.walletRefs.get(custId).tell(new Wallet.DeductBalance(fare, context.getSelf()));
         } else {

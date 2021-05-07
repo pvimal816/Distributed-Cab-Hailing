@@ -95,7 +95,7 @@ public class RideService {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RideResponse that = (RideResponse) o;
-            return true || fare == that.fare && cabId.equals(that.cabId);
+            return fare == that.fare && cabId.equals(that.cabId);
         }
 
         @Override

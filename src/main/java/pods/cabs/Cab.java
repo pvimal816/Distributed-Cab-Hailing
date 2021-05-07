@@ -191,7 +191,7 @@ public class Cab {
         rideCnt = 0;
         isInterested = true;
         Random random = new Random();
-        Globals.rideServiceRefs.get(random.nextInt(Globals.rideServiceRefs.size())).tell(
+        Globals.rideServiceRefs.get((long)random.nextInt(Globals.rideServiceRefs.size())).tell(
                 new RideService.CabSignsIn(cabId, signIn.initialPos, currentTimestamp++)
         );
         return cab();

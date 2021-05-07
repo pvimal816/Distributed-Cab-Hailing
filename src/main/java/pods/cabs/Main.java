@@ -95,7 +95,7 @@ public class Main {
         }
 
         replyTo.tell(new Started());
-        return Behaviors.stopped();
+        return Behaviors.empty();
     }
 
 }

@@ -3,12 +3,19 @@ package pods.cabs;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorRef;
+import com.typesafe.config.ConfigFactory;
 import org.junit.ClassRule;
 import org.junit.Test;
 
 public class Tester {
     @ClassRule
-    public static final TestKitJunitResource testKit = new TestKitJunitResource();
+    public static final TestKitJunitResource testKit = new TestKitJunitResource(
+            ConfigFactory.parseString("akka {\n" +
+                    "  loggers = [\"akka.event.slf4j.Slf4jLogger\"]\n" +
+                    "  loglevel = \"INFO\"\n" +
+                    "  logging-filter = \"akka.event.slf4j.Slf4jLoggingFilter\"\n" +
+                    "}")
+    );
 
     @Test
     public void requestRideTest1() {
