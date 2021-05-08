@@ -90,6 +90,10 @@ public class Main {
                 Globals.rideServiceRefs.put(i, context.spawn(RideService.create(i, cabInfos), "RideServiceActor_"+i));
             }
 
+            //spawn one KVStore actor
+            Map<String, Long> map = new HashMap<>();
+            map.put(Globals.RIDE_ID_KEY, 0L);
+            Globals.kvStoreRef = context.spawn(KVStore.create(map), "KVStoreActor");
         } catch (IOException e){
             e.printStackTrace();
         }

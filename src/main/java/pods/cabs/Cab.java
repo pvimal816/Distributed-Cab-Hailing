@@ -5,6 +5,7 @@ import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
 
+import java.util.Objects;
 import java.util.Random;
 
 public class Cab {
@@ -110,6 +111,19 @@ public class Cab {
             this.response = response;
             this.timestamp = timestamp;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NumRideResponse that = (NumRideResponse) o;
+            return response == that.response;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(response);
+        }
     }
 
     public static final class RequestRideResponse implements FulfillRide.Command {
@@ -163,7 +177,24 @@ public class Cab {
         return cab();
     }
 
+    @Override
+    public String toString() {
+        return "Cab{" +
+                "cabId='" + cabId + '\'' +
+                ", currentTimestamp=" + currentTimestamp +
+                ", isInterested=" + isInterested +
+                ", state=" + state +
+                ", lastKnownLocation=" + lastKnownLocation +
+                ", rideCnt=" + rideCnt +
+                ", rideId=" + rideId +
+                ", sourceLocation=" + sourceLocation +
+                ", destinationLocation=" + destinationLocation +
+                ", fulFillRideActorRef=" + fulFillRideActorRef +
+                '}';
+    }
+
     public Behavior<Cab.CabCommand> onRequestRide(RequestRide requestRide){
+
         if(state!=CabState.AVAILABLE){
             requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
             return cab();

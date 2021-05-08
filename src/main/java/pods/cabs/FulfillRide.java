@@ -54,16 +54,14 @@ public class FulfillRide {
     public final static class RequestRide implements Command {
         long sourceLoc;
         long destinationLoc;
-        long rideId;
         String custId;
 
         ActorRef<RideService.RideResponse> replyTo;
 
-        public RequestRide(long sourceLoc, long destinationLoc, long rideId, String custId,
+        public RequestRide(long sourceLoc, long destinationLoc, String custId,
                            ActorRef<RideService.RideResponse> replyTo) {
             this.sourceLoc = sourceLoc;
             this.destinationLoc = destinationLoc;
-            this.rideId = rideId;
             this.replyTo = replyTo;
             this.custId = custId;
         }
@@ -87,29 +85,17 @@ public class FulfillRide {
                 .onMessage(RideEnded.class, this::onRideEnded)
                 .onMessage(Wallet.ResponseBalance.class, this::onResponseBalance)
                 .onMessage(Cab.RequestRideResponse.class, this::onRequestRideResponse)
+                .onMessage(KVStore.KVStoreResponse.class, this::onKVStoreResponse)
                 .build();
     }
 
     public Behavior<Command> onRequestRide(RequestRide requestRide){
         this.sourceLoc = requestRide.sourceLoc;
         this.destinationLoc = requestRide.destinationLoc;
-        this.rideId = requestRide.rideId;
         this.custId = requestRide.custId;
-        cabInfos.sort(Comparator.comparingLong(cabInfo -> Math.abs(cabInfo.lastKnownLocation - sourceLoc)));
-        cabInfos.removeIf(cabInfo -> cabInfo.state!=CabState.AVAILABLE);
         replyTo = requestRide.replyTo;
-        if(cabInfos.size()==0){
-            replyTo.tell(new RideService.RideResponse(-1, "0", 0, null, -1));
-            return Behaviors.stopped();
-        }
-        // copy upto three nearest cabs into nearestCabs
-        nearestCabs = new ArrayList<>();
-        nearestCabs.add(cabInfos.get(0));
-        if(cabInfos.size()>1) nearestCabs.add(cabInfos.get(1));
-        if(cabInfos.size()>2) nearestCabs.add(cabInfos.get(2));
-
-        ActorRef<Cab.CabCommand> cab = Globals.cabRefs.get(nearestCabs.get(0).cabId);
-        cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
+        // generate a new rideId;
+        Globals.kvStoreRef.tell(new KVStore.GetAndIncrement(Globals.RIDE_ID_KEY, context.getSelf()));
         return fulFillRide();
     }
 
@@ -156,6 +142,25 @@ public class FulfillRide {
     public Behavior<Command> onRideEnded(RideEnded rideEnded){
         parentRef.tell(new RideService.RideEnded(chosenCabId, rideEnded.timestamp, destinationLoc));
         return Behaviors.stopped();
+    }
+
+    public Behavior<Command> onKVStoreResponse(KVStore.KVStoreResponse kvStoreResponse){
+        rideId = kvStoreResponse.value;
+        cabInfos.sort(Comparator.comparingLong(cabInfo -> Math.abs(cabInfo.lastKnownLocation - sourceLoc)));
+        cabInfos.removeIf(cabInfo -> cabInfo.state!=CabState.AVAILABLE);
+        if(cabInfos.size()==0){
+            replyTo.tell(new RideService.RideResponse(-1, "0", 0, null, -1));
+            return Behaviors.stopped();
+        }
+        // copy upto three nearest cabs into nearestCabs
+        nearestCabs = new ArrayList<>();
+        nearestCabs.add(cabInfos.get(0));
+        if(cabInfos.size()>1) nearestCabs.add(cabInfos.get(1));
+        if(cabInfos.size()>2) nearestCabs.add(cabInfos.get(2));
+
+        ActorRef<Cab.CabCommand> cab = Globals.cabRefs.get(nearestCabs.get(0).cabId);
+        cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
+        return fulFillRide();
     }
 
 }

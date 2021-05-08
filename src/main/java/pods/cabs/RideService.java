@@ -11,6 +11,7 @@ import java.util.Objects;
 
 public class RideService {
 
+    long fullFillRideActorCount=0L;
     public static final class CabInfo {
         String cabId;
         long lastKnownLocation;
@@ -24,11 +25,21 @@ public class RideService {
             this.state = state;
             this.timestamp = timestamp;
         }
+
+        @Override
+        public String toString() {
+            return "CabInfo{" +
+                    "cabId='" + cabId + '\'' +
+                    ", lastKnownLocation=" + lastKnownLocation +
+                    ", state=" + state +
+                    ", timestamp=" + timestamp +
+                    '}';
+        }
     }
 
     Map<String, CabInfo> cabInfos;
     private final ActorContext<RideServiceCommand> context;
-    long rideId = 0;
+
     long rideServiceInstanceId;
 
     public RideService(long rideServiceInstanceId, Map<String, CabInfo> cabInfos, ActorContext<RideServiceCommand> context) {
@@ -180,18 +191,15 @@ public class RideService {
     }
 
     public Behavior<RideServiceCommand> onRequestRide(RequestRide requestRide){
+
         ActorRef<FulfillRide.Command> fulFillRideRef = context.spawn(FulfillRide.create(
                 new ArrayList<>(cabInfos.values()), context.getSelf()),
-                "fulfill_ride_actor" + rideId
+                "fulfill_ride_actor_"+rideServiceInstanceId+"_"+(fullFillRideActorCount++)
         );
-
-//        context.getLog().info("Received ride request on ride instance " + rideServiceInstanceId + "\n");
-
-        //TODO: Currently the rideId is not globally consistent. Fix it.
 
         fulFillRideRef.tell(new FulfillRide.RequestRide(
                         requestRide.sourceLoc, requestRide.destinationLoc,
-                        rideId++, requestRide.custId, requestRide.replyTo
+                        requestRide.custId, requestRide.replyTo
                 )
         );
 
