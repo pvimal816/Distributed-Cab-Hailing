@@ -48,9 +48,9 @@ public class Main {
     }
 
     public Behavior<Create> onCreate(Create create){
-        Globals.rideServiceRefs = new HashMap<>();
+        Globals.rideService = new ArrayList<>();
         Globals.walletRefs = new HashMap<>();
-        Globals.cabRefs = new HashMap<>();
+        Globals.cabs = new HashMap<>();
 
         try {
             File cabInfoFile = new File(input_file);
@@ -73,7 +73,7 @@ public class Main {
             long balance = Long.parseLong(st);
 
             for (String cabId: cabIds) {
-                Globals.cabRefs.put(cabId, context.spawn(Cab.create(cabId), "CabActor_"+cabId));
+                Globals.cabs.put(cabId, context.spawn(Cab.create(cabId), "CabActor_"+cabId));
             }
 
             for (String custId: custIds) {
@@ -86,8 +86,8 @@ public class Main {
                 cabInfos.put(cabId, cabInfo);
             }
 
-            for(long i=0; i<10; i++){
-                Globals.rideServiceRefs.put(i, context.spawn(RideService.create(i, cabInfos), "RideServiceActor_"+i));
+            for(int i=0; i<10; i++){
+                Globals.rideService.add(context.spawn(RideService.create(i, cabInfos), "RideServiceActor_"+i));
             }
 
             //spawn one KVStore actor

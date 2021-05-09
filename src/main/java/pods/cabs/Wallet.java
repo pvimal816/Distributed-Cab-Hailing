@@ -12,10 +12,10 @@ public class Wallet {
     long balance;
     final long initialBalance;
 
-    interface WalletCommand {}
+    interface Command {}
     // All the 'end points' of Wallet are will implement this interface.
 
-    public static final class GetBalance implements WalletCommand {
+    public static final class GetBalance implements Command {
         public final ActorRef<ResponseBalance> replyTo;
 
         public GetBalance(ActorRef<ResponseBalance> replyTo) {
@@ -23,7 +23,7 @@ public class Wallet {
         }
     }
 
-    public static final class DeductBalance implements WalletCommand {
+    public static final class DeductBalance implements Command {
         public final long amount;
         public final ActorRef<FulfillRide.Command> replyTo;
 
@@ -33,7 +33,7 @@ public class Wallet {
         }
     }
 
-    public static final class AddBalance implements WalletCommand {
+    public static final class AddBalance implements Command {
         public final long amount;
 
         public AddBalance(long amount) {
@@ -41,7 +41,7 @@ public class Wallet {
         }
     }
 
-    public static final class Reset implements WalletCommand {
+    public static final class Reset implements Command {
         public final ActorRef<ResponseBalance> replyTo;
 
         public Reset(ActorRef<ResponseBalance> replyTo) {
@@ -67,22 +67,22 @@ public class Wallet {
         }
     }
 
-    private final ActorContext<WalletCommand> context;
+    private final ActorContext<Command> context;
 
-    public static Behavior<WalletCommand> create(String customerId, long balance) {
+    public static Behavior<Command> create(String customerId, long balance) {
         return Behaviors.setup(
                 ctx -> new Wallet(ctx, customerId, balance).wallet());
     }
 
-    public Wallet(ActorContext<WalletCommand> context, String customerId, long balance) {
+    public Wallet(ActorContext<Command> context, String customerId, long balance) {
         this.customerId = customerId;
         this.balance = balance;
         this.context = context;
         this.initialBalance = balance;
     }
 
-    private Behavior<WalletCommand> wallet() {
-        return Behaviors.receive(WalletCommand.class)
+    private Behavior<Command> wallet() {
+        return Behaviors.receive(Command.class)
                 .onMessage(GetBalance.class, this::onGetBalance)
                 .onMessage(DeductBalance.class, this::onDeductBalance)
                 .onMessage(AddBalance.class, this::onAddBalance)
@@ -90,13 +90,13 @@ public class Wallet {
                 .build();
     }
 
-    private Behavior<WalletCommand> onGetBalance(GetBalance getBalance) {
+    private Behavior<Command> onGetBalance(GetBalance getBalance) {
         ActorRef<ResponseBalance> client = getBalance.replyTo;
         client.tell(new ResponseBalance(balance));
         return wallet();
     }
 
-    private Behavior<WalletCommand> onDeductBalance(DeductBalance deductBalance) {
+    private Behavior<Command> onDeductBalance(DeductBalance deductBalance) {
         ActorRef<FulfillRide.Command> client = deductBalance.replyTo;
         if (deductBalance.amount > 0 && balance >= deductBalance.amount) {
             balance -= deductBalance.amount;
@@ -107,13 +107,13 @@ public class Wallet {
         return wallet();
     }
 
-    private Behavior<WalletCommand> onAddBalance(AddBalance addBalance) {
+    private Behavior<Command> onAddBalance(AddBalance addBalance) {
         if (addBalance.amount >= 0)
             balance += addBalance.amount;
         return wallet();
     }
 
-    private Behavior<WalletCommand> onReset(Reset reset) {
+    private Behavior<Command> onReset(Reset reset) {
         ActorRef<ResponseBalance> client = reset.replyTo;
         balance = initialBalance;
         client.tell(new ResponseBalance(balance));

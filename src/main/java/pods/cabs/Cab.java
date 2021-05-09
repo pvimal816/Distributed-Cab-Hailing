@@ -42,9 +42,9 @@ public class Cab {
     long destinationLocation;
     ActorRef<FulfillRide.Command> fulFillRideActorRef;
 
-    interface CabCommand {}
+    interface Command {}
 
-    public static final class RequestRide implements CabCommand {
+    public static final class RequestRide implements Command {
         long rideId;
         long sourceLoc;
         long destinationLoc;
@@ -59,22 +59,25 @@ public class Cab {
         }
     }
 
-    public static final class RideStarted implements CabCommand {
+    public static final class RideStarted implements Command {
         public RideStarted() {
         }
     }
 
-    public static final class RideCanceled implements CabCommand {
+    public static final class RideCanceled implements Command {
         public RideCanceled() {
         }
     }
 
-    public final static class RideEnded implements CabCommand {
-        public RideEnded() {
+    public final static class RideEnded implements Command {
+        Long rideId;
+
+        public RideEnded(Long rideId) {
+            this.rideId = rideId;
         }
     }
 
-    public static final class SignIn implements CabCommand {
+    public static final class SignIn implements Command {
         long initialPos;
 
         public SignIn(long initialPos) {
@@ -82,19 +85,19 @@ public class Cab {
         }
     }
 
-    public static final class SignOut implements CabCommand {
+    public static final class SignOut implements Command {
         public SignOut() {
         }
     }
 
-    public static final class NumRides implements CabCommand {
+    public static final class NumRides implements Command {
         ActorRef<NumRideResponse> replyTo;
         public NumRides(ActorRef<NumRideResponse> replyTo) {
             this.replyTo = replyTo;
         }
     }
 
-    public static final class Reset implements CabCommand {
+    public static final class Reset implements Command {
         ActorRef<NumRideResponse> replyTo;
         public Reset(ActorRef<NumRideResponse> replyTo) {
             this.replyTo = replyTo;
@@ -141,8 +144,8 @@ public class Cab {
         this.currentTimestamp = 0;
     }
 
-    public Behavior<Cab.CabCommand> cab(){
-        return Behaviors.receive(CabCommand.class)
+    public Behavior<Command> cab(){
+        return Behaviors.receive(Command.class)
                 .onMessage(RequestRide.class, this::onRequestRide)
                 .onMessage(RideStarted.class, this::onRideStarted)
                 .onMessage(RideCanceled.class, this::onRideCanceled)
@@ -154,22 +157,24 @@ public class Cab {
                 .build();
     }
 
-    public static Behavior<Cab.CabCommand> create(String cabId){
+    public static Behavior<Command> create(String cabId){
         return Behaviors.setup(
                 ctx -> new Cab(cabId).cab());
     }
 
-    public Behavior<Cab.CabCommand> onRideStarted(RideStarted rideStarted){
+    public Behavior<Command> onRideStarted(RideStarted rideStarted){
         state = CabState.GIVING_RIDE;
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onRideCanceled(RideCanceled rideCanceled){
+    public Behavior<Command> onRideCanceled(RideCanceled rideCanceled){
         state = CabState.AVAILABLE;
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onRideEnded(RideEnded rideEnded){
+    public Behavior<Command> onRideEnded(RideEnded rideEnded){
+        if(rideId != rideEnded.rideId)
+            return cab();
         state = CabState.AVAILABLE;
         lastKnownLocation = destinationLocation;
         rideCnt += 1;
@@ -193,7 +198,7 @@ public class Cab {
                 '}';
     }
 
-    public Behavior<Cab.CabCommand> onRequestRide(RequestRide requestRide){
+    public Behavior<Command> onRequestRide(RequestRide requestRide){
 
         if(state!=CabState.AVAILABLE){
             requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
@@ -216,37 +221,37 @@ public class Cab {
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onSignIn(SignIn signIn){
+    public Behavior<Command> onSignIn(SignIn signIn){
         state = CabState.AVAILABLE;
         lastKnownLocation = signIn.initialPos;
         rideCnt = 0;
         isInterested = true;
         Random random = new Random();
-        Globals.rideServiceRefs.get((long)random.nextInt(Globals.rideServiceRefs.size())).tell(
+        Globals.rideService.get(random.nextInt(Globals.rideService.size())).tell(
                 new RideService.CabSignsIn(cabId, signIn.initialPos, currentTimestamp++)
         );
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onSignOut(SignOut signOut){
+    public Behavior<Command> onSignOut(SignOut signOut){
         state = CabState.SIGNED_OUT;
         Random random = new Random();
-        Globals.rideServiceRefs.get((long)random.nextInt(Globals.rideServiceRefs.size())).tell(
+        Globals.rideService.get(random.nextInt(Globals.rideService.size())).tell(
                 new RideService.CabSignsOut(cabId, currentTimestamp++)
         );
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onReset(Reset reset){
-        reset.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
+    public Behavior<Command> onReset(Reset reset){
         if(state == CabState.GIVING_RIDE)
-            onRideEnded(new RideEnded());
+            onRideEnded(new RideEnded(rideId));
         if(state != CabState.SIGNED_OUT)
             onSignOut(new SignOut());
+        reset.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
         return cab();
     }
 
-    public Behavior<Cab.CabCommand> onNumRides(NumRides numRides){
+    public Behavior<Command> onNumRides(NumRides numRides){
         numRides.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
         return cab();
     }

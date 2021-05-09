@@ -38,19 +38,19 @@ public class RideService {
     }
 
     Map<String, CabInfo> cabInfos;
-    private final ActorContext<RideServiceCommand> context;
+    private final ActorContext<Command> context;
 
     long rideServiceInstanceId;
 
-    public RideService(long rideServiceInstanceId, Map<String, CabInfo> cabInfos, ActorContext<RideServiceCommand> context) {
+    public RideService(long rideServiceInstanceId, Map<String, CabInfo> cabInfos, ActorContext<Command> context) {
         this.cabInfos = cabInfos;
         this.context = context;
         this.rideServiceInstanceId = rideServiceInstanceId;
     }
 
-    interface RideServiceCommand {}
+    interface Command {}
 
-    public static final class CabSignsIn implements RideServiceCommand{
+    public static final class CabSignsIn implements Command {
         String cabId;
         long initialPos;
         long timestamp;
@@ -62,7 +62,7 @@ public class RideService {
         }
     }
 
-    public static final class CabSignsOut  implements RideServiceCommand {
+    public static final class CabSignsOut  implements Command {
         String cabId;
         long timestamp;
 
@@ -72,7 +72,7 @@ public class RideService {
         }
     }
 
-    public static final class RequestRide  implements RideServiceCommand {
+    public static final class RequestRide  implements Command {
         String custId;
         long sourceLoc;
         long destinationLoc;
@@ -86,7 +86,7 @@ public class RideService {
         }
     }
 
-    public static final class RideResponse implements RideServiceCommand{
+    public static final class RideResponse implements Command {
         long rideId;
         String cabId;
         long fare;
@@ -115,7 +115,7 @@ public class RideService {
         }
     }
 
-    public static final class RideEnded implements RideServiceCommand {
+    public static final class RideEnded implements Command {
         String cabId;
         long currentLocation;
         long timestamp;
@@ -127,7 +127,7 @@ public class RideService {
         }
     }
 
-    public static final class CabInfoUpdate implements RideServiceCommand {
+    public static final class CabInfoUpdate implements Command {
         CabInfo cabInfo;
         
         public CabInfoUpdate(CabInfo cabInfo) {
@@ -136,16 +136,16 @@ public class RideService {
     }
 
     public void broadCastCabInfo(CabInfo cabInfo){
-        for (long x: Globals.rideServiceRefs.keySet()) {
-            if(x==rideServiceInstanceId)
+        for (int i = 0; i<Globals.rideService.size(); i++) {
+            if(i==rideServiceInstanceId)
                 continue;
-            ActorRef<RideServiceCommand> ref = Globals.rideServiceRefs.get(x);
+            ActorRef<Command> ref = Globals.rideService.get(i);
             ref.tell(new CabInfoUpdate(cabInfo));
         }
     }
 
-    public Behavior<RideServiceCommand> rideService(){
-        return Behaviors.receive(RideServiceCommand.class)
+    public Behavior<Command> rideService(){
+        return Behaviors.receive(Command.class)
                 .onMessage(CabSignsIn.class, this::onCabSignsIn)
                 .onMessage(CabSignsOut.class, this::onCabSignsOut)
                 .onMessage(RequestRide.class, this::onRequestRide)
@@ -155,7 +155,7 @@ public class RideService {
                 .build();
     }
 
-    public Behavior<RideServiceCommand> onCabSignsIn(CabSignsIn cabSignsIn){
+    public Behavior<Command> onCabSignsIn(CabSignsIn cabSignsIn){
         CabInfo cabInfo = cabInfos.get(cabSignsIn.cabId);
         // ignore if this is an obsolete message
         if(cabInfo.timestamp > cabSignsIn.timestamp)
@@ -173,7 +173,7 @@ public class RideService {
         return rideService();
     }
 
-    public Behavior<RideServiceCommand> onCabSignsOut(CabSignsOut cabSignsOut){
+    public Behavior<Command> onCabSignsOut(CabSignsOut cabSignsOut){
         CabInfo cabInfo = cabInfos.get(cabSignsOut.cabId);
         // ignore if this is an obsolete message
         if(cabInfo.timestamp > cabSignsOut.timestamp)
@@ -190,7 +190,7 @@ public class RideService {
         return rideService();
     }
 
-    public Behavior<RideServiceCommand> onRequestRide(RequestRide requestRide){
+    public Behavior<Command> onRequestRide(RequestRide requestRide){
 
         ActorRef<FulfillRide.Command> fulFillRideRef = context.spawn(FulfillRide.create(
                 new ArrayList<>(cabInfos.values()), context.getSelf()),
@@ -206,7 +206,7 @@ public class RideService {
         return rideService();
     }
 
-    public Behavior<RideServiceCommand> onRideResponse(RideResponse rideResponse){
+    public Behavior<Command> onRideResponse(RideResponse rideResponse){
         if(rideResponse.rideId == -1)
             return rideService();
 
@@ -226,7 +226,7 @@ public class RideService {
         return rideService();
     }
 
-    public Behavior<RideServiceCommand> onRideEnded(RideEnded rideEnded){
+    public Behavior<Command> onRideEnded(RideEnded rideEnded){
         CabInfo cabInfo = cabInfos.get(rideEnded.cabId);
         if(cabInfo.timestamp > rideEnded.timestamp)
             return rideService();
@@ -236,7 +236,7 @@ public class RideService {
         return rideService();
     }
 
-    public Behavior<RideServiceCommand> onCabInfoUpdate(CabInfoUpdate cabInfoUpdate){
+    public Behavior<Command> onCabInfoUpdate(CabInfoUpdate cabInfoUpdate){
         CabInfo localCabInfo = cabInfos.get(cabInfoUpdate.cabInfo.cabId);
         //update only if this message is the latest message.
         if(localCabInfo.timestamp > cabInfoUpdate.cabInfo.timestamp)
@@ -245,7 +245,7 @@ public class RideService {
         return rideService();
     }
 
-    public static Behavior<RideServiceCommand> create(
+    public static Behavior<Command> create(
             long rideServiceInstanceId, Map<String, RideService.CabInfo> cabInfos) {
         return Behaviors.setup(
                 ctx -> new RideService(rideServiceInstanceId, cabInfos, ctx).rideService()

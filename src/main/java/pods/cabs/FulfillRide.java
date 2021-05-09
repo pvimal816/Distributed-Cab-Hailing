@@ -36,7 +36,7 @@ public class FulfillRide {
     String chosenCabId;
     long chosenCabLatestTimestamp;
 
-    ActorRef<RideService.RideServiceCommand> parentRef;
+    ActorRef<RideService.Command> parentRef;
     ActorRef<RideService.RideResponse> replyTo;
 
     ActorContext<Command> context;
@@ -45,7 +45,7 @@ public class FulfillRide {
     interface Command {}
 
     public FulfillRide(ActorContext<Command> context, ArrayList<CabInfo> cabInfos,
-                       ActorRef<RideService.RideServiceCommand> parentRef) {
+                       ActorRef<RideService.Command> parentRef) {
         this.context = context;
         this.cabInfos = cabInfos;
         this.parentRef = parentRef;
@@ -67,14 +67,14 @@ public class FulfillRide {
         }
     }
 
-    public static final class RideEnded implements FulfillRide.Command {
+    public static final class RideEnded implements Command {
         long timestamp;
         public RideEnded(long timestamp) {
             this.timestamp = timestamp;
         }
     }
 
-    public static Behavior<Command> create(ArrayList<CabInfo> cabInfos, ActorRef<RideService.RideServiceCommand> parentRef){
+    public static Behavior<Command> create(ArrayList<CabInfo> cabInfos, ActorRef<RideService.Command> parentRef){
         return Behaviors.setup(
                 ctx -> new FulfillRide(ctx, cabInfos, parentRef).fulFillRide());
     }
@@ -113,7 +113,7 @@ public class FulfillRide {
                 replyTo.tell(new RideService.RideResponse(-1, "0", 0, null, -1));
                 return Behaviors.stopped();
             }
-            ActorRef<Cab.CabCommand> cab = Globals.cabRefs.get(nearestCabs.get(0).cabId);
+            ActorRef<Cab.Command> cab = Globals.cabs.get(nearestCabs.get(0).cabId);
             cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
         }
         return fulFillRide();
@@ -123,14 +123,14 @@ public class FulfillRide {
         if(responseBalance.balance == -1) {
             // not enough balance in wallet
             // notify cab to cancel the ride
-            Globals.cabRefs.get(chosenCabId).tell(new Cab.RideCanceled());
+            Globals.cabs.get(chosenCabId).tell(new Cab.RideCanceled());
             // notify rideService instance of failure
             replyTo.tell(new RideService.RideResponse(-1, "0", 0, null, -1));
             return Behaviors.stopped();
         }
 
         // notify cab to start the ride
-        Globals.cabRefs.get(chosenCabId).tell(new Cab.RideStarted());
+        Globals.cabs.get(chosenCabId).tell(new Cab.RideStarted());
         // notify request maker of success
         replyTo.tell(new RideService.RideResponse(rideId, chosenCabId, fare, context.getSelf(), chosenCabLatestTimestamp));
         // notify ride service of success so that it can update the state of the cab in it's cache
@@ -158,7 +158,7 @@ public class FulfillRide {
         if(cabInfos.size()>1) nearestCabs.add(cabInfos.get(1));
         if(cabInfos.size()>2) nearestCabs.add(cabInfos.get(2));
 
-        ActorRef<Cab.CabCommand> cab = Globals.cabRefs.get(nearestCabs.get(0).cabId);
+        ActorRef<Cab.Command> cab = Globals.cabs.get(nearestCabs.get(0).cabId);
         cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
         return fulFillRide();
     }
