@@ -57,6 +57,16 @@ public class Cab {
             this.destinationLoc = destinationLoc;
             this.replyTo = replyTo;
         }
+
+        @Override
+        public String toString() {
+            return "RequestRide{" +
+                    "rideId=" + rideId +
+                    ", sourceLoc=" + sourceLoc +
+                    ", destinationLoc=" + destinationLoc +
+                    ", replyTo=" + replyTo +
+                    '}';
+        }
     }
 
     public static final class RideStarted implements Command {
@@ -199,6 +209,8 @@ public class Cab {
     }
 
     public Behavior<Command> onRequestRide(RequestRide requestRide){
+
+        System.err.println("[ Log ] Cab-"+ cabId +".onRequestRide: request received from " + requestRide.toString() + " and current state of cab is " + state.toString() +"\n\n");
 
         if(state!=CabState.AVAILABLE){
             requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
