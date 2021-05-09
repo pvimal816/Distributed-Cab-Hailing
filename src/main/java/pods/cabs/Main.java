@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Main {
-    public static final String input_file = "F:\\academic docs\\MTech\\sem 2\\PODS\\projects\\akka_project\\cab_hailing\\target\\IDs.txt";
+    public static final String input_file = "F:\\academic docs\\MTech\\sem 2\\PODS\\projects\\akka_project\\cab_hailing\\IDs.txt";
 
     public static final class Create{
         public Create() {

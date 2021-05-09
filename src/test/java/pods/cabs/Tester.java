@@ -7,6 +7,7 @@ import com.typesafe.config.ConfigFactory;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +38,47 @@ public class Tester {
                 "201", 50, 100, rideResponseProbe.ref()));
 
         rideResponseProbe.expectMessage(new RideService.RideResponse(0, "101", 1000, null, 0));
+
+        testKit.stop(main);
+    }
+
+    @Test
+    public void requestRideTest2() {
+        /**
+         * Three cabs signs in.
+         * Then there comes three ride
+         * requests at the same time.
+          */
+        TestProbe<Main.Started> probe = testKit.createTestProbe();
+        ActorRef<Main.Create> main = testKit.spawn(Main.create(probe.ref()), "mainActor");
+        main.tell(new Main.Create());
+        probe.expectMessage(new Main.Started());
+
+        reset();
+
+        Globals.cabs.get("101").tell(new Cab.SignIn(0));
+        Globals.cabs.get("102").tell(new Cab.SignIn(0));
+        Globals.cabs.get("103").tell(new Cab.SignIn(0));
+
+        TestProbe<RideService.RideResponse> rideResponseProbe1 = testKit.createTestProbe();
+        TestProbe<RideService.RideResponse> rideResponseProbe2 = testKit.createTestProbe();
+        TestProbe<RideService.RideResponse> rideResponseProbe3 = testKit.createTestProbe();
+
+        Globals.rideService.get(0).tell(new RideService.RequestRide(
+                "201", 50, 100, rideResponseProbe1.ref()));
+        Globals.rideService.get(0).tell(new RideService.RequestRide(
+                "202", 50, 100, rideResponseProbe2.ref()));
+        Globals.rideService.get(0).tell(new RideService.RequestRide(
+                "203", 50, 100, rideResponseProbe3.ref()));
+
+        RideService.RideResponse rideResponse = rideResponseProbe1.receiveMessage();
+        assertNotEquals(-1, rideResponse.rideId);
+
+        rideResponse = rideResponseProbe2.receiveMessage();
+        assertNotEquals(-1, rideResponse.rideId);
+
+        rideResponse = rideResponseProbe3.receiveMessage();
+        assertNotEquals(-1, rideResponse.rideId);
 
         testKit.stop(main);
     }

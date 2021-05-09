@@ -192,6 +192,8 @@ public class RideService {
 
     public Behavior<Command> onRequestRide(RequestRide requestRide){
 
+        System.err.println("[ Log ] RideService.onRequestRide: cache state is " + cabInfos.toString() + "\n\n");
+
         ActorRef<FulfillRide.Command> fulFillRideRef = context.spawn(FulfillRide.create(
                 new ArrayList<>(cabInfos.values()), context.getSelf()),
                 "fulfill_ride_actor_"+rideServiceInstanceId+"_"+(fullFillRideActorCount++)

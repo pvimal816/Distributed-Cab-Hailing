@@ -13,7 +13,7 @@ public class WalletTester {
 
     @Test
     public void getBalanceTest() {
-        ActorRef<Wallet.WalletCommand> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
+        ActorRef<Wallet.Command> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
         TestProbe<Wallet.ResponseBalance> probe = testKit.createTestProbe();
         wallet.tell(new Wallet.GetBalance(probe.ref()));
         probe.expectMessage(new Wallet.ResponseBalance(1000));
@@ -22,7 +22,7 @@ public class WalletTester {
 
     @Test
     public void addBalanceTest(){
-        ActorRef<Wallet.WalletCommand> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
+        ActorRef<Wallet.Command> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
         TestProbe<Wallet.ResponseBalance> probe = testKit.createTestProbe();
         wallet.tell(new Wallet.AddBalance(100));
         wallet.tell(new Wallet.GetBalance(probe.ref()));
@@ -32,7 +32,7 @@ public class WalletTester {
 
     @Test
     public void deductBalanceTest(){
-        ActorRef<Wallet.WalletCommand> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
+        ActorRef<Wallet.Command> wallet = testKit.spawn(Wallet.create("101", 1000), "test_wallet");
         TestProbe<FulfillRide.Command> probe = testKit.createTestProbe();
         wallet.tell(new Wallet.DeductBalance(100, probe.ref()));
         probe.expectMessage(new Wallet.ResponseBalance(900));
