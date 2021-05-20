@@ -3,10 +3,14 @@ package pods.cabs;
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
+import akka.cluster.sharding.typed.javadsl.EntityTypeKey;
 
 import java.util.Map;
 
 public class KVStore {
+
+    public static final EntityTypeKey<Command> TypeKey =
+            EntityTypeKey.create(Command.class, "KVStoreEntity");
 
     Map<String, Long> map;
 

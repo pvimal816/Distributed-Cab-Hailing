@@ -3,46 +3,172 @@ package pods.cabs;
 
 import akka.actor.typed.ActorRef;
 import akka.actor.typed.Behavior;
+import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
+import akka.cluster.sharding.typed.javadsl.EntityTypeKey;
+import akka.persistence.typed.PersistenceId;
+import akka.persistence.typed.javadsl.CommandHandler;
+import akka.persistence.typed.javadsl.Effect;
+import akka.persistence.typed.javadsl.EventHandler;
+import akka.persistence.typed.javadsl.EventSourcedBehavior;
 
 import java.util.Objects;
 import java.util.Random;
 
-public class Cab {
-    public enum CabState {
-        AVAILABLE, COMMITTED,
-        GIVING_RIDE, SIGNED_OUT
+public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State> {
+
+    public static final EntityTypeKey<Command> TypeKey = EntityTypeKey.create(Cab.Command.class, "CabEntity");
+
+    interface Command extends CborSerializable{}
+
+    interface Event extends CborSerializable{}
+
+    static final class State implements CborSerializable{
+        public enum CabState {
+            AVAILABLE,
+            GIVING_RIDE, SIGNED_OUT
+        }
+
+        String cabId;
+
+        /**
+         *  If the cab is interested
+         *  in taking the next ride request
+         * */
+        public boolean isInterested;
+        public CabState state;
+        public long lastKnownLocation;
+        public long rideCnt;
+
+        /**
+         *
+         * All following fields stores
+         * information about the ongoing ride.
+         * */
+        public long rideId;
+        public long sourceLocation;
+        public long destinationLocation;
+        public long fare;
+
+        public State(String cabId, boolean isInterested, CabState state, long lastKnownLocation) {
+            this.cabId = cabId;
+            this.isInterested = isInterested;
+            this.state = state;
+            this.lastKnownLocation = lastKnownLocation;
+            this.rideCnt = 0;
+        }
     }
 
-    String cabId;
-    /**
-     * each cab maintains a reply id. All
-     * the messages sent by this cab will contain
-     * the unique monotonically increasing msgId.
-      */
-    long currentTimestamp;
+    @Override
+    public State emptyState() {
+        return new State(this.persistenceId().id().split("\\|")[1],
+                true, State.CabState.SIGNED_OUT, 0);
+    }
 
-    /**
-     *  If the cab is interested
-     *  in taking the next ride request
-     * */
-    boolean isInterested;
-    CabState state;
-    long lastKnownLocation;
-    long rideCnt;
+    public static final class RequestRideEvent implements Event{
+        long rideId;
+        long sourceLoc;
+        long destinationLoc;
 
-    /**
-     *
-     * All following fields stores
-     * information about the ongoing ride.
-     * */
+        public RequestRideEvent(long rideId, long sourceLoc, long destinationLoc) {
+            this.rideId = rideId;
+            this.sourceLoc = sourceLoc;
+            this.destinationLoc = destinationLoc;
+        }
+    }
 
-    long rideId;
-    long sourceLocation;
-    long destinationLocation;
-    ActorRef<FulfillRide.Command> fulFillRideActorRef;
+    public static final class RideEndedEvent implements Event{
+        Long rideId;
 
-    interface Command {}
+        public RideEndedEvent(Long rideId) {
+            this.rideId = rideId;
+        }
+    }
+
+    public static final class SignInEvent implements Event{
+        long initialPos;
+
+        public SignInEvent(long initialPos) {
+            this.initialPos = initialPos;
+        }
+    }
+
+    public static final class SignOutEvent implements Event{
+        int dummy=0;
+    }
+
+    public static final class ResetEvent implements Event{
+        int dummy=0;
+    }
+
+    @Override
+    public EventHandler<State, Event> eventHandler() {
+        return newEventHandlerBuilder()
+                .forAnyState()
+                .onEvent(RequestRideEvent.class, Cab::onRequestRideEvent)
+                .onEvent(RideEndedEvent.class, Cab::onRideEndedEvent)
+                .onEvent(SignInEvent.class, Cab::onSignInEvent)
+                .onEvent(SignOutEvent.class, Cab::onSignOutEvent)
+                .onEvent(ResetEvent.class, Cab::onResetEvent)
+                .build();
+    }
+
+    public static State onRequestRideEvent(State state, RequestRideEvent event){
+        if(state.state!=State.CabState.AVAILABLE){
+            throw new IllegalStateException("Account balance can't be negative");
+        }
+
+        if(state.isInterested){
+            state.isInterested = false;
+            state.state = State.CabState.GIVING_RIDE;
+            state.sourceLocation = event.sourceLoc;
+            state.destinationLocation = event.destinationLoc;
+            state.rideId = event.rideId;
+        }else{
+            state.isInterested = true;
+        }
+
+        return state;
+    }
+
+    public static State onRideEndedEvent(State state, RideEndedEvent event){
+        if(state.rideId != event.rideId)
+            throw new IllegalStateException("No such ride to end!");
+        state.state = State.CabState.AVAILABLE;
+        state.lastKnownLocation = state.destinationLocation;
+        state.rideCnt += 1;
+        return state;
+    }
+
+    public static State onSignInEvent(State state, SignInEvent event){
+        state.state = State.CabState.AVAILABLE;
+        state.lastKnownLocation = event.initialPos;
+        state.rideCnt = 0;
+        state.isInterested = true;
+        return state;
+    }
+
+    public static State onSignOutEvent(State state, SignOutEvent event){
+        state.state = State.CabState.SIGNED_OUT;
+        return state;
+    }
+
+    public static State onResetEvent(State state, ResetEvent event){
+        state.state = State.CabState.SIGNED_OUT;
+        return state;
+    }
+
+    @Override
+    public CommandHandler<Command, Event, State> commandHandler() {
+        return newCommandHandlerBuilder().forStateType(State.class)
+                .onCommand(RequestRide.class, this::onRequestRide)
+                .onCommand(RideEnded.class, this::onRideEnded)
+                .onCommand(SignIn.class, this::onSignIn)
+                .onCommand(SignOut.class, this::onSignOut)
+                .onCommand(Reset.class, this::onReset)
+                .onCommand(NumRides.class, this::onNumRides)
+                .build();
+    }
 
     public static final class RequestRide implements Command {
         long rideId;
@@ -56,26 +182,6 @@ public class Cab {
             this.sourceLoc = sourceLoc;
             this.destinationLoc = destinationLoc;
             this.replyTo = replyTo;
-        }
-
-        @Override
-        public String toString() {
-            return "RequestRide{" +
-                    "rideId=" + rideId +
-                    ", sourceLoc=" + sourceLoc +
-                    ", destinationLoc=" + destinationLoc +
-                    ", replyTo=" + replyTo +
-                    '}';
-        }
-    }
-
-    public static final class RideStarted implements Command {
-        public RideStarted() {
-        }
-    }
-
-    public static final class RideCanceled implements Command {
-        public RideCanceled() {
         }
     }
 
@@ -118,157 +224,77 @@ public class Cab {
 
     public static final class NumRideResponse implements CabResponse{
         long response;
-        long timestamp;
 
-        public NumRideResponse(long response, long timestamp) {
+        public NumRideResponse(long response) {
             this.response = response;
-            this.timestamp = timestamp;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            NumRideResponse that = (NumRideResponse) o;
-            return response == that.response;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(response);
         }
     }
 
     public static final class RequestRideResponse implements FulfillRide.Command {
         boolean response;
-        long timestamp;
-
-        public RequestRideResponse(boolean response, long timestamp) {
+        long lastKnownLocation;
+        public RequestRideResponse(boolean response, long lastKnownLocation) {
             this.response = response;
-            this.timestamp = timestamp;
+            this.lastKnownLocation = lastKnownLocation;
         }
     }
 
-    public Cab(String cabId) {
-        this.cabId = cabId;
-        this.currentTimestamp = 0;
-    }
-
-    public Behavior<Command> cab(){
-        return Behaviors.receive(Command.class)
-                .onMessage(RequestRide.class, this::onRequestRide)
-                .onMessage(RideStarted.class, this::onRideStarted)
-                .onMessage(RideCanceled.class, this::onRideCanceled)
-                .onMessage(RideEnded.class, this::onRideEnded)
-                .onMessage(SignIn.class, this::onSignIn)
-                .onMessage(SignOut.class, this::onSignOut)
-                .onMessage(Reset.class, this::onReset)
-                .onMessage(NumRides.class, this::onNumRides)
-                .build();
-    }
-
-    public static Behavior<Command> create(String cabId){
+    public static Behavior<Command> create(String cabId, PersistenceId persistenceId){
         return Behaviors.setup(
-                ctx -> new Cab(cabId).cab());
+                ctx -> new Cab(ctx, persistenceId)
+        );
     }
 
-    public Behavior<Command> onRideStarted(RideStarted rideStarted){
-        state = CabState.GIVING_RIDE;
-        return cab();
+    public Cab(ActorContext<Command> context, PersistenceId persistenceId) {
+        super(persistenceId);
     }
 
-    public Behavior<Command> onRideCanceled(RideCanceled rideCanceled){
-        state = CabState.AVAILABLE;
-        return cab();
+    public Effect<Event, State> onRideEnded(State state, RideEnded rideEnded){
+        if(state.rideId != rideEnded.rideId)
+            return Effect().none();
+        return Effect()
+                .persist(new RideEndedEvent(rideEnded.rideId));
     }
 
-    public Behavior<Command> onRideEnded(RideEnded rideEnded){
-        if(rideId != rideEnded.rideId)
-            return cab();
-        state = CabState.AVAILABLE;
-        lastKnownLocation = destinationLocation;
-        rideCnt += 1;
-        fulFillRideActorRef.tell(new FulfillRide.RideEnded(currentTimestamp++));
-        return cab();
-    }
-
-    @Override
-    public String toString() {
-        return "Cab{" +
-                "cabId='" + cabId + '\'' +
-                ", currentTimestamp=" + currentTimestamp +
-                ", isInterested=" + isInterested +
-                ", state=" + state +
-                ", lastKnownLocation=" + lastKnownLocation +
-                ", rideCnt=" + rideCnt +
-                ", rideId=" + rideId +
-                ", sourceLocation=" + sourceLocation +
-                ", destinationLocation=" + destinationLocation +
-                ", fulFillRideActorRef=" + fulFillRideActorRef +
-                '}';
-    }
-
-    public Behavior<Command> onRequestRide(RequestRide requestRide){
-
-        System.err.println("[ Log ] Cab-"+ cabId +".onRequestRide: request received from " + requestRide.toString() + " and current state of cab is " + state.toString() +"\n\n");
-
-        if(state!=CabState.AVAILABLE){
-            requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
-            return cab();
-        }
-
-        if(isInterested){
-            isInterested = false;
-            state = CabState.COMMITTED;
-            sourceLocation = requestRide.sourceLoc;
-            destinationLocation = requestRide.destinationLoc;
-            rideId = requestRide.rideId;
-            fulFillRideActorRef = requestRide.replyTo;
-            requestRide.replyTo.tell(new RequestRideResponse(true, currentTimestamp++));
+    private Effect<Event, State> onRequestRide(State state, RequestRide requestRide){
+        if(state.state==State.CabState.AVAILABLE && state.isInterested) {
+            return Effect().persist(new RequestRideEvent(requestRide.rideId, requestRide.sourceLoc, requestRide.destinationLoc))
+                    .thenRun(newState -> requestRide.replyTo.tell(
+                            new RequestRideResponse(true, state.lastKnownLocation)
+                            )
+                    );
         }else{
-            isInterested = true;
-            requestRide.replyTo.tell(new RequestRideResponse(false, currentTimestamp++));
+            return Effect().none().thenRun(
+                    newState -> requestRide.replyTo.tell(new RequestRideResponse(false, -1))
+            );
         }
-
-        return cab();
     }
 
-    public Behavior<Command> onSignIn(SignIn signIn){
-        state = CabState.AVAILABLE;
-        lastKnownLocation = signIn.initialPos;
-        rideCnt = 0;
-        isInterested = true;
-        Random random = new Random();
-        Globals.rideService.get(random.nextInt(Globals.rideService.size())).tell(
-                new RideService.CabSignsIn(cabId, signIn.initialPos, currentTimestamp++)
+    public Effect<Event, State> onSignIn(State state, SignIn signIn){
+        if(state.state != State.CabState.SIGNED_OUT)
+            return Effect().none();
+        return Effect().persist(
+            new SignInEvent(signIn.initialPos)
         );
-        return cab();
     }
 
-    public Behavior<Command> onSignOut(SignOut signOut){
-        state = CabState.SIGNED_OUT;
-        Random random = new Random();
-        Globals.rideService.get(random.nextInt(Globals.rideService.size())).tell(
-                new RideService.CabSignsOut(cabId, currentTimestamp++)
+    public Effect<Event, State> onSignOut(State state, SignOut signOut){
+        if(state.state != State.CabState.AVAILABLE)
+            return Effect().none();
+        return Effect().persist(
+                new SignOutEvent()
         );
-        return cab();
     }
 
-    public Behavior<Command> onReset(Reset reset){
-        if(state == CabState.GIVING_RIDE)
-            onRideEnded(new RideEnded(rideId));
-        if(state != CabState.SIGNED_OUT)
-            onSignOut(new SignOut());
-        reset.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
-        return cab();
+    public Effect<Event, State> onReset(Reset reset){
+        return Effect()
+                .persist(new ResetEvent())
+                .thenRun(newState -> reset.replyTo.tell(new NumRideResponse(1)));
     }
 
-    public Behavior<Command> onNumRides(NumRides numRides){
-        numRides.replyTo.tell(new NumRideResponse(rideCnt, currentTimestamp++));
-        return cab();
+    public Effect<Event, State> onNumRides(NumRides numRides){
+        return Effect()
+                .none()
+                .thenRun(newState-> numRides.replyTo.tell(new NumRideResponse(newState.rideCnt)));
     }
-
-    //TODO: change the return values of handlers so that only
-    // legal messages gets accepted in each state.
-
 }
