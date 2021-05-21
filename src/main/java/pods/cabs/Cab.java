@@ -12,9 +12,6 @@ import akka.persistence.typed.javadsl.Effect;
 import akka.persistence.typed.javadsl.EventHandler;
 import akka.persistence.typed.javadsl.EventSourcedBehavior;
 
-import java.util.Objects;
-import java.util.Random;
-
 public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State> {
 
     public static final EntityTypeKey<Command> TypeKey = EntityTypeKey.create(Cab.Command.class, "CabEntity");
@@ -91,14 +88,24 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
         public SignInEvent(long initialPos) {
             this.initialPos = initialPos;
         }
+
+        public SignInEvent() {
+            this.initialPos = 0;
+        }
     }
 
     public static final class SignOutEvent implements Event{
         int dummy=0;
+
+        public SignOutEvent() {
+        }
     }
 
     public static final class ResetEvent implements Event{
         int dummy=0;
+
+        public ResetEvent() {
+        }
     }
 
     @Override
@@ -240,6 +247,7 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     }
 
     public static Behavior<Command> create(String cabId, PersistenceId persistenceId){
+        System.err.println("[Cab.create] cabId: " + cabId);
         return Behaviors.setup(
                 ctx -> new Cab(ctx, persistenceId)
         );
@@ -271,8 +279,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     }
 
     public Effect<Event, State> onSignIn(State state, SignIn signIn){
-        if(state.state != State.CabState.SIGNED_OUT)
+        if(state.state != State.CabState.SIGNED_OUT) {
+            System.err.println("[Cab.onSignIn] received signin request while cab is already signed in!");
             return Effect().none();
+        }
         return Effect().persist(
             new SignInEvent(signIn.initialPos)
         );
@@ -287,6 +297,7 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     }
 
     public Effect<Event, State> onReset(Reset reset){
+        System.err.println("[Cab.onReset] ...");
         return Effect()
                 .persist(new ResetEvent())
                 .thenRun(newState -> reset.replyTo.tell(new NumRideResponse(1)));

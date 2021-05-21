@@ -16,9 +16,9 @@ public class RideService extends AbstractBehavior<RideService.Command> {
 
     private final ActorContext<Command> context;
 
-    long rideServiceInstanceId;
+    String rideServiceInstanceId;
 
-    public RideService(long rideServiceInstanceId, ActorContext<Command> context) {
+    public RideService(String rideServiceInstanceId, ActorContext<Command> context) {
         super(context);
         this.context = context;
         this.rideServiceInstanceId = rideServiceInstanceId;
@@ -79,7 +79,8 @@ public class RideService extends AbstractBehavior<RideService.Command> {
         return rideService();
     }
 
-    public static Behavior<Command> create(long rideServiceInstanceId) {
+    public static Behavior<Command> create(String rideServiceInstanceId) {
+        System.err.println("[RideService.create] rideServiceInstanceId: " + rideServiceInstanceId);
         return Behaviors.setup(
                 ctx -> new RideService(rideServiceInstanceId, ctx)
         );

@@ -1,105 +1,92 @@
 package pods.cabs;
 
-import akka.actor.typed.ActorRef;
+import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
-import akka.actor.typed.javadsl.ActorContext;
 import akka.actor.typed.javadsl.Behaviors;
 
-import java.io.*;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import akka.cluster.sharding.typed.javadsl.Entity;
+import akka.persistence.typed.PersistenceId;
+import akka.cluster.sharding.typed.javadsl.ClusterSharding;
+
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+
 public class Main {
-    public static final String input_file = "F:\\academic docs\\MTech\\sem 2\\PODS\\projects\\akka_project\\cab_hailing\\IDs.txt";
+    public static void main(String[] args) {
+        if (args.length == 0)
+            System.err.println("Please provide the port number!");
+        else
+            Arrays.stream(args).map(Integer::parseInt).forEach(Main::startup);
+    }
 
-    public static final class Create{
-        public Create() {
+    private static Behavior<Void> rootBehavior() {
+        return Behaviors.setup(context -> Behaviors.empty());
+    }
+
+    private static void startup(int port) {
+        Map<String, Object> overrides = new HashMap<>();
+        overrides.put("akka.remote.artery.canonical.port", port);
+        if (port == 25251) {
+            overrides.put("akka.persistence.journal.plugin", "akka.persistence.journal.leveldb");
+            overrides.put("akka.persistence.journal.proxy.start-target-journal", "on");
         }
-    }
-
-    public static final class Started{
-        public Started() {
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            String className = o.getClass().getName();
-            return (className.equals("pods.cabs.Main$Started"));
-        }
-    }
-
-    ActorContext<Create> context;
-    ActorRef<Started> replyTo;
-
-    public Main(ActorContext<Create> context, ActorRef<Started> replyTo) {
-        this.context = context;
-        this.replyTo = replyTo;
-    }
-
-    public static Behavior<Create> create(ActorRef<Started> replyTo){
-        return Behaviors.setup(ctx-> new Main(ctx, replyTo).main());
-    }
-
-    public Behavior<Create> main(){
-        return Behaviors.receive(Create.class)
-                .onMessage(Create.class, this::onCreate)
-                .build();
-    }
-
-    public Behavior<Create> onCreate(Create create){
-        Globals.rideService = new ArrayList<>();
-        Globals.walletRefs = new HashMap<>();
-        Globals.cabs = new HashMap<>();
-
-        try {
-            File cabInfoFile = new File(input_file);
-            BufferedReader br = new BufferedReader(new FileReader(cabInfoFile));
-            String st;
-
-            //skip the first line containing "****"
-            br.readLine();
-
-            ArrayList<String> cabIds = new ArrayList<>();
-            ArrayList<String> custIds = new ArrayList<>();
-
-            while ((st = br.readLine()) != null && !st.equals("****"))
-                cabIds.add(st);
-
-            while ((st = br.readLine()) != null && !st.equals("****"))
-                custIds.add(st);
-
-            st = br.readLine();
-            long balance = Long.parseLong(st);
-
-            for (String cabId: cabIds) {
-                Globals.cabs.put(cabId, context.spawn(Cab.create(cabId), "CabActor_"+cabId));
-            }
-
-            for (String custId: custIds) {
-                Globals.walletRefs.put(custId, context.spawn(Wallet.create(custId, balance), "WalletActor_"+custId));
-            }
-
-            Map<String, RideService.CabInfo> cabInfos = new HashMap<>();
-            for (String cabId: cabIds) {
-                RideService.CabInfo cabInfo = new RideService.CabInfo(cabId, 0, Cab.CabState.SIGNED_OUT, -1);
-                cabInfos.put(cabId, cabInfo);
-            }
-
-            for(int i=0; i<10; i++){
-                Globals.rideService.add(context.spawn(RideService.create(i, cabInfos), "RideServiceActor_"+i));
-            }
-
-            //spawn one KVStore actor
-            Map<String, Long> map = new HashMap<>();
-            map.put(Globals.RIDE_ID_KEY, 0L);
-            Globals.kvStoreRef = context.spawn(KVStore.create(map), "KVStoreActor");
-        } catch (IOException e){
-            e.printStackTrace();
+        else  {
+            overrides.put("akka.persistence.journal.plugin", "akka.persistence.journal.proxy");
         }
 
-        replyTo.tell(new Started());
-        return Behaviors.empty();
-    }
+        Config config = ConfigFactory.parseMap(overrides)
+                .withFallback(ConfigFactory.load());
 
+        // Create an Akka system
+        ActorSystem<Void> system = ActorSystem.create(rootBehavior(), "ClusterSystem", config);
+
+        final ClusterSharding cabSharding = ClusterSharding.get(system);
+
+        //initialize sharding for cabs
+        cabSharding.init(
+                Entity.of(Cab.TypeKey,
+                        entityContext ->
+                                Cab.create(
+                                        entityContext.getEntityId(),
+                                        PersistenceId.of(
+                                                entityContext.getEntityTypeKey().name(), entityContext.getEntityId()
+                                        )
+                                )
+                )
+        );
+
+        final ClusterSharding rideServiceSharding = ClusterSharding.get(system);
+        rideServiceSharding.init(
+                Entity.of(RideService.TypeKey,
+                        entityContext ->
+                                RideService.create(entityContext.getEntityId())
+                )
+        );
+
+        if (port == 25251) {
+            cabSharding.entityRefFor(Cab.TypeKey, "cab101");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService1");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService2");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService3");
+        } else if (port == 25252) {
+            cabSharding.entityRefFor(Cab.TypeKey, "cab102");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService4");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService5");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService6");
+        } else if (port == 25253) {
+            cabSharding.entityRefFor(Cab.TypeKey, "cab103");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService7");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService8");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService9");
+        } else if (port == 25254) {
+            cabSharding.entityRefFor(Cab.TypeKey, "cab104");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService10");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService11");
+            rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService12");
+        }
+    }
 }

@@ -10,9 +10,6 @@ import akka.cluster.sharding.typed.javadsl.Entity;
 import akka.cluster.sharding.typed.javadsl.EntityRef;
 import akka.persistence.typed.PersistenceId;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-
 public class FulfillRide {
 
     /*
@@ -26,7 +23,7 @@ public class FulfillRide {
     long fare;
     String chosenCabId;
 
-    long nextCabToTry = 201;
+    long nextCabToTry = 101;
     ClusterSharding sharding;
 
     ActorRef<RideService.RideResponse> replyTo;
@@ -62,7 +59,7 @@ public class FulfillRide {
         return Behaviors.receive(Command.class)
                 .onMessage(RequestRide.class, this::onRequestRide)
                 .onMessage(Cab.RequestRideResponse.class, this::onRequestRideResponse)
-                .onMessage(KVStore.KVStoreResponse.class, this::onKVStoreResponse)
+                .onMessage(Counter.CounterValue.class, this::onCounterValue)
                 .build();
     }
 
@@ -71,21 +68,21 @@ public class FulfillRide {
         this.destinationLoc = requestRide.destinationLoc;
         replyTo = requestRide.replyTo;
         // generate a new rideId;
-        EntityRef<KVStore.Command> kvStoreRef = sharding.entityRefFor(KVStore.TypeKey, "kvstore1");
-        kvStoreRef.tell(new KVStore.GetAndIncrement("rideId", context.getSelf()));
+        EntityRef<Counter.Command> counterRef = sharding.entityRefFor(Counter.TypeKey, "RideIdCounter");
+        counterRef.tell(new Counter.GetAndIncrement(context.getSelf()));
         return fulFillRide();
     }
 
-    public Behavior<Command> onKVStoreResponse(KVStore.KVStoreResponse kvStoreResponse){
+    public Behavior<Command> onCounterValue(Counter.CounterValue counterValue){
         sharding.init(
                 Entity.of(Cab.TypeKey, entityContext -> Cab.create(entityContext.getEntityId(), PersistenceId.of(
                         entityContext.getEntityTypeKey().name(), entityContext.getEntityId()
                 )))
         );
 
-        EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "" + nextCabToTry);
+        EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "cab" + nextCabToTry);
 
-        rideId = kvStoreResponse.value;
+        rideId = counterValue.value;
         cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
 
         return fulFillRide();
@@ -99,11 +96,11 @@ public class FulfillRide {
             replyTo.tell(new RideService.RideResponse(rideId, chosenCabId, fare));
         } else {
             ++nextCabToTry;
-            if(nextCabToTry > 204){
+            if(nextCabToTry > 104){
                 replyTo.tell(new RideService.RideResponse(-1, "0", 0));
                 return Behaviors.stopped();
             }
-            EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "" + nextCabToTry);
+            EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "cab" + nextCabToTry);
             cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
         }
         return fulFillRide();
