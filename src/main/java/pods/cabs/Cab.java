@@ -131,6 +131,7 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
             state.sourceLocation = event.sourceLoc;
             state.destinationLocation = event.destinationLoc;
             state.rideId = event.rideId;
+            state.rideCnt += 1;
         }else{
             state.isInterested = true;
         }
@@ -143,7 +144,6 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
             throw new IllegalStateException("No such ride to end!");
         state.state = State.CabState.AVAILABLE;
         state.lastKnownLocation = state.destinationLocation;
-        state.rideCnt += 1;
         return state;
     }
 

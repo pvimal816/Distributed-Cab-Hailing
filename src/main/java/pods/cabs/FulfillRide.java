@@ -25,6 +25,7 @@ public class FulfillRide {
 
     long nextCabToTry = 101;
     ClusterSharding sharding;
+    ClusterSharding counterSharding;
 
     ActorRef<RideService.RideResponse> replyTo;
 
@@ -35,6 +36,7 @@ public class FulfillRide {
     public FulfillRide(ActorContext<Command> context) {
         this.context = context;
         sharding = ClusterSharding.get(this.context.getSystem());
+        counterSharding = ClusterSharding.get(this.context.getSystem());
     }
 
     public final static class RequestRide implements Command {
@@ -68,7 +70,12 @@ public class FulfillRide {
         this.destinationLoc = requestRide.destinationLoc;
         replyTo = requestRide.replyTo;
         // generate a new rideId;
-        EntityRef<Counter.Command> counterRef = sharding.entityRefFor(Counter.TypeKey, "RideIdCounter");
+        counterSharding.init(
+                Entity.of(Counter.TypeKey, entityContext -> Counter.create(entityContext.getEntityId(), PersistenceId.of(
+                        entityContext.getEntityTypeKey().name(), entityContext.getEntityId()
+                )))
+        );
+        EntityRef<Counter.Command> counterRef = counterSharding.entityRefFor(Counter.TypeKey, "RideIdCounter");
         counterRef.tell(new Counter.GetAndIncrement(context.getSelf()));
         return fulFillRide();
     }
