@@ -67,6 +67,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
         long sourceLoc;
         long destinationLoc;
 
+        public RequestRideEvent(){
+
+        }
+
         public RequestRideEvent(long rideId, long sourceLoc, long destinationLoc) {
             this.rideId = rideId;
             this.sourceLoc = sourceLoc;
@@ -77,8 +81,13 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     public static final class RideEndedEvent implements Event{
         Long rideId;
 
+        public RideEndedEvent(){
+
+        }
+
         public RideEndedEvent(Long rideId) {
             this.rideId = rideId;
+
         }
     }
 
@@ -183,6 +192,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
         long destinationLoc;
         ActorRef<FulfillRide.Command> replyTo;
 
+        public RequestRide(){
+
+        }
+
         public RequestRide(long rideId, long sourceLoc, long destinationLoc,
                            ActorRef<FulfillRide.Command> replyTo) {
             this.rideId = rideId;
@@ -195,6 +208,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     public final static class RideEnded implements Command {
         Long rideId;
 
+        public RideEnded(){
+            
+        }
+
         public RideEnded(Long rideId) {
             this.rideId = rideId;
         }
@@ -202,6 +219,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
 
     public static final class SignIn implements Command {
         long initialPos;
+
+        public SignIn(){
+
+        }
 
         public SignIn(long initialPos) {
             this.initialPos = initialPos;
@@ -214,6 +235,11 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     }
 
     public static final class NumRides implements Command {
+
+        public NumRides(){
+
+        }
+
         ActorRef<NumRideResponse> replyTo;
         public NumRides(ActorRef<NumRideResponse> replyTo) {
             this.replyTo = replyTo;
@@ -221,6 +247,11 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     }
 
     public static final class Reset implements Command {
+
+        public Reset(){
+
+        }
+
         ActorRef<NumRideResponse> replyTo;
         public Reset(ActorRef<NumRideResponse> replyTo) {
             this.replyTo = replyTo;
@@ -232,6 +263,10 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     public static final class NumRideResponse implements CabResponse{
         long response;
 
+        public NumRideResponse(){
+
+        }
+
         public NumRideResponse(long response) {
             this.response = response;
         }
@@ -240,6 +275,11 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
     public static final class RequestRideResponse implements FulfillRide.Command {
         boolean response;
         long lastKnownLocation;
+
+        public RequestRideResponse(){
+            
+        }
+
         public RequestRideResponse(boolean response, long lastKnownLocation) {
             this.response = response;
             this.lastKnownLocation = lastKnownLocation;
@@ -271,7 +311,12 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
                             new RequestRideResponse(true, state.lastKnownLocation)
                             )
                     );
-        }else{
+        } else if(state.state==State.CabState.AVAILABLE){
+            return Effect().persist(new RequestRideEvent(requestRide.rideId, requestRide.sourceLoc, requestRide.destinationLoc))
+                    .thenRun(newState -> requestRide.replyTo.tell(new RequestRideResponse(false, -1))
+                    );
+        }
+        else{
             return Effect().none().thenRun(
                     newState -> requestRide.replyTo.tell(new RequestRideResponse(false, -1))
             );

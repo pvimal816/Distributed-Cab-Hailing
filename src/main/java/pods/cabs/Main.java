@@ -4,9 +4,13 @@ import akka.actor.typed.ActorSystem;
 import akka.actor.typed.Behavior;
 import akka.actor.typed.javadsl.Behaviors;
 
-import java.util.Arrays;
+import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+
+
+import java.util.Arrays;
 
 import akka.cluster.sharding.typed.javadsl.Entity;
 import akka.persistence.typed.PersistenceId;
@@ -17,10 +21,12 @@ import com.typesafe.config.ConfigFactory;
 
 public class Main {
     public static void main(String[] args) {
+
         if (args.length == 0)
             System.err.println("Please provide the port number!");
-        else
+        else{
             Arrays.stream(args).map(Integer::parseInt).forEach(Main::startup);
+        }       
     }
 
     private static Behavior<Void> rootBehavior() {
@@ -28,6 +34,8 @@ public class Main {
     }
 
     private static void startup(int port) {
+
+
         Map<String, Object> overrides = new HashMap<>();
         overrides.put("akka.remote.artery.canonical.port", port);
         if (port == 25251) {
@@ -68,22 +76,22 @@ public class Main {
         );
 
         if (port == 25251) {
-            cabSharding.entityRefFor(Cab.TypeKey, "cab101");
+            cabSharding.entityRefFor(Cab.TypeKey, "101");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService1");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService2");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService3");
         } else if (port == 25252) {
-            cabSharding.entityRefFor(Cab.TypeKey, "cab102");
+            cabSharding.entityRefFor(Cab.TypeKey, "102");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService4");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService5");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService6");
         } else if (port == 25253) {
-            cabSharding.entityRefFor(Cab.TypeKey, "cab103");
+            cabSharding.entityRefFor(Cab.TypeKey, "103");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService7");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService8");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService9");
         } else if (port == 25254) {
-            cabSharding.entityRefFor(Cab.TypeKey, "cab104");
+            cabSharding.entityRefFor(Cab.TypeKey, "104");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService10");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService11");
             rideServiceSharding.entityRefFor(RideService.TypeKey, "rideService12");
