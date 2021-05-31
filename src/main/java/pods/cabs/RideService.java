@@ -47,7 +47,7 @@ public class RideService extends AbstractBehavior<RideService.Command> {
 
     private final ActorContext<Command> context;
 
-    String rideServiceInstanceId;
+    String rideServiceInstanceId = "";
 
     public RideService(String rideServiceInstanceId, ActorContext<Command> context) {
         super(context);
@@ -71,6 +71,8 @@ public class RideService extends AbstractBehavior<RideService.Command> {
         long destinationLoc;
         ActorRef<RideResponse> replyTo;
 
+        public RequestRide(){}
+
         public RequestRide(String custId, long sourceLoc, long destinationLoc, ActorRef<RideResponse> replyTo) {
             this.custId = custId;
             this.sourceLoc = sourceLoc;
@@ -83,6 +85,8 @@ public class RideService extends AbstractBehavior<RideService.Command> {
         long rideId;
         String cabId;
         long fare;
+
+        public RideResponse(){}
 
         public RideResponse(long rideId, String cabId, long fare) {
             this.rideId = rideId;
@@ -98,7 +102,8 @@ public class RideService extends AbstractBehavior<RideService.Command> {
     }
 
     public Behavior<Command> onRequestRide(RequestRide requestRide){
-
+        System.err.println("[RideService.onRequestRide] rideServiceInstanceId: " +
+                rideServiceInstanceId + ", actor_url: " + context.getSystem().address());
         // Create an array of valid cabIds here and check that requestRide.custId is present in them.
         // If not present, throw an error.
 

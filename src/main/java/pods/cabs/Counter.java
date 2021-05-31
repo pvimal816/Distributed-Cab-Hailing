@@ -25,6 +25,8 @@ public class Counter extends
     public static final class GetAndIncrement implements Command {
         ActorRef<FulfillRide.Command> replyTo;
 
+        public GetAndIncrement(){}
+
         public GetAndIncrement(ActorRef<FulfillRide.Command> replyTo) {
             this.replyTo = replyTo;
         }
@@ -32,6 +34,8 @@ public class Counter extends
 
     public static final class CounterValue implements FulfillRide.Command {
         final long value;
+
+        public CounterValue(){this.value = 0;}
 
         public CounterValue(long value) {
             this.value = value;
@@ -43,10 +47,12 @@ public class Counter extends
 
     public static final class GetAndIncrementEvent implements CounterEvent {
         int dummy = 0;
+        public GetAndIncrementEvent(){}
     }
 
     static final class Count implements CborSerializable {
         public long count = 0;
+        public Count(){}
     }
 
     @Override

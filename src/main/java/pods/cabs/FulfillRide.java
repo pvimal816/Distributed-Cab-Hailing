@@ -31,7 +31,7 @@ public class FulfillRide {
 
     ActorContext<Command> context;
 
-    interface Command {}
+    interface Command extends CborSerializable {}
 
     public FulfillRide(ActorContext<Command> context) {
         this.context = context;
@@ -43,6 +43,8 @@ public class FulfillRide {
         long sourceLoc;
         long destinationLoc;
         ActorRef<RideService.RideResponse> replyTo;
+
+        public RequestRide(){}
 
         public RequestRide(long sourceLoc, long destinationLoc,
                            ActorRef<RideService.RideResponse> replyTo) {

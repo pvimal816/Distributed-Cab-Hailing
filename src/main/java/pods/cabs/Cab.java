@@ -54,6 +54,8 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
             this.lastKnownLocation = lastKnownLocation;
             this.rideCnt = 0;
         }
+
+        public State(){}
     }
 
     @Override
@@ -258,7 +260,7 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
         }
     }
 
-    interface CabResponse {}
+    interface CabResponse extends CborSerializable {}
 
     public static final class NumRideResponse implements CabResponse{
         long response;
@@ -325,7 +327,7 @@ public class Cab extends EventSourcedBehavior<Cab.Command, Cab.Event, Cab.State>
 
     public Effect<Event, State> onSignIn(State state, SignIn signIn){
         if(state.state != State.CabState.SIGNED_OUT) {
-            System.err.println("[Cab.onSignIn] received signin request while cab is already signed in!");
+            System.err.println("[Cab.onSignIn] received sign in request while cab is already signed in!");
             return Effect().none();
         }
         return Effect().persist(

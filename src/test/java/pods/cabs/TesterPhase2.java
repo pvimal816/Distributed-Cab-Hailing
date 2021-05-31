@@ -1,5 +1,6 @@
 package pods.cabs;
 
+import akka.actor.testkit.typed.javadsl.ActorTestKit;
 import akka.actor.testkit.typed.javadsl.TestKitJunitResource;
 import akka.actor.testkit.typed.javadsl.TestProbe;
 import akka.actor.typed.ActorSystem;
@@ -26,29 +27,31 @@ public class TesterPhase2 {
 
     @ClassRule
     public static final TestKitJunitResource testKit = new TestKitJunitResource(
-            ConfigFactory.parseString("akka {\n" +
-                    "  loggers = [\"akka.event.slf4j.Slf4jLogger\"]\n" +
-                    "  loglevel = \"DEBUG\"\n" +
-                    "  logging-filter = \"akka.event.slf4j.Slf4jLoggingFilter\"\n" +
-                    "  actor.provider=\"cluster\"\n" +
-                    "  actor.allow-java-serialization = on\n" +
-                    "  remote.artery.canonical.hostname = \"127.0.0.1\"\n" +
-                    "  remote.artery.canonical.port = 0\n" +
-                    "  cluster.seed-nodes = [\"akka://ClusterSystem@127.0.0.1:25251\", \"akka://ClusterSystem@127.0.0.1:25252\"]\n" +
-                    "  cluster.downing-provider-class= \"akka.cluster.sbr.SplitBrainResolverProvider\"\n" +
-                    "  persistence.journal.plugin=\"akka.persistence.journal.proxy\"\n" +
-                    "  persistence.journal.proxy.target-journal-plugin=\"akka.persistence.journal.leveldb\"\n" +
-                    "  persistence.journal.proxy.target-journal-address = \"akka://ClusterSystem@127.0.0.1:25251\"\n" +
-                    "  persistence.journal.proxy.start-target-journal = \"off\"\n" +
-                    "}")
+            ActorTestKit.create("ClusterSystem"
+               /* ,ConfigFactory.parseString("akka {\n" +
+                        "  loggers = [\"akka.event.slf4j.Slf4jLogger\"]\n" +
+                        "  loglevel = \"DEBUG\"\n" +
+                        "  logging-filter = \"akka.event.slf4j.Slf4jLoggingFilter\"\n" +
+                        "  actor.provider=\"cluster\"\n" +
+                        "  actor.allow-java-serialization = on\n" +
+                        "  remote.artery.canonical.hostname = \"127.0.0.1\"\n" +
+                        "  remote.artery.canonical.port = 0\n" +
+                        "  cluster.seed-nodes = [\"akka://ClusterSystem@127.0.0.1:25251\", \"akka://ClusterSystem@127.0.0.1:25252\"]\n" +
+                        "  cluster.downing-provider-class= \"akka.cluster.sbr.SplitBrainResolverProvider\"\n" +
+                        "  persistence.journal.plugin=\"akka.persistence.journal.proxy\"\n" +
+                        "  persistence.journal.proxy.target-journal-plugin=\"akka.persistence.journal.leveldb\"\n" +
+                        "  persistence.journal.proxy.target-journal-address = \"akka://ClusterSystem@127.0.0.1:25251\"\n" +
+                        "  persistence.journal.proxy.start-target-journal = \"off\"\n" +
+                        "}")*/
+            )
     );
 
     public static void init() {
 
         // This is used to initialise the cluster sharding of Cab and RideService.
 
-        Cluster cluster = Cluster.get(testKit.system());
-        cluster.manager().tell(Join.create(cluster.selfMember().address()));
+//        Cluster cluster = Cluster.get(testKit.system());
+//        cluster.manager().tell(Join.create(cluster.selfMember().address()));
 
         cabSharding = ClusterSharding.get(testKit.system());
         cabSharding.init(Entity.of(Cab.TypeKey,
@@ -74,7 +77,7 @@ public class TesterPhase2 {
         System.out.println("\n");
 
 
-        EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "cab101");
+        EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "101");
         TestProbe<Cab.NumRideResponse> resetRes = testKit.createTestProbe();
 
         cab101.tell(new Cab.Reset(resetRes.ref()));
@@ -315,6 +318,7 @@ public class TesterPhase2 {
         cab101.tell(new Cab.SignIn(100)); // the cab signs in.
 
         EntityRef<RideService.Command> rideService1 = rideSharding.entityRefFor(RideService.TypeKey, "rideService1");
+        EntityRef<RideService.Command> rideService4 = rideSharding.entityRefFor(RideService.TypeKey, "rideService4");
         TestProbe<RideService.RideResponse> rideResponseTestProbe = testKit.createTestProbe();
 
         // Book ride.
@@ -341,12 +345,12 @@ public class TesterPhase2 {
         cab101.tell(new Cab.RideEnded(rideResponseOne.rideId));
 
         // Book ride again - this should not be allocated as we have to reject alternate ride.
-        rideService1.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
+        rideService4.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
         RideService.RideResponse rideResponseThree = rideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
         assertEquals(-1, rideResponseThree.rideId);
 
         // Book ride again - this should be allocated as we have to accept alternate ride.
-        rideService1.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
+        rideService4.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
         rideResponseThree = rideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
         assertNotEquals(-1, rideResponseThree.rideId);
 
