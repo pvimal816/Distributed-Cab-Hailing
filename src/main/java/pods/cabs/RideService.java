@@ -14,7 +14,7 @@ import java.util.ArrayList;
 
 public class RideService extends AbstractBehavior<RideService.Command> {    
     public static final EntityTypeKey<Command> TypeKey = EntityTypeKey.create(RideService.Command.class, "RideServiceEntity");
-    public static String input_file = "/Users/gokulnathpillai/Documents/GradSchool/PODS/Project 2/pods_project_02/IDs.txt";
+    public static String input_file = "IDs.txt";
     ArrayList<String> customerIds;
 
     public static ArrayList<String> readCustId(){

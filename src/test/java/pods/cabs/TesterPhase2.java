@@ -14,6 +14,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.junit.Assert.*;
 
@@ -133,16 +135,56 @@ public class TesterPhase2 {
         assertEquals(1, resp.response);
     }
 
-    @Test
-    public void cabTest3() {
+    public static void resetCabs(){
         init();
+        for (String cabId: new ArrayList<String>(Arrays.asList("101", "102", "103", "104"))) {
+            EntityRef<Cab.Command> cab = cabSharding.entityRefFor(Cab.TypeKey, cabId);
+            TestProbe<Cab.NumRideResponse> resetRes = testKit.createTestProbe();
 
-        // In this test, cab 101 signs in
+            cab.tell(new Cab.Reset(resetRes.ref()));
+            Cab.NumRideResponse resp = resetRes.receiveMessage(Duration.ofSeconds(10));
+            assertEquals(1, resp.response);
+        }
+    }
 
-        System.out.println("\n");
-        System.out.println("-------------------------This is test 3.----------------------------");
-        System.out.println("\n");
+    @Test
+    public void cabTest3_1() {
+        /**
+         * This test should be run just before cabTest3_2.
+         * It can be used to check the persistence functionality
+         * of the cab.
+         */
 
+        init();
+        resetCabs();
+
+        EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "101");
+
+        cab101.tell(new Cab.SignIn(100));
+
+        EntityRef<RideService.Command> rideService1 = rideSharding.entityRefFor(RideService.TypeKey, "rideService1");
+        TestProbe<RideService.RideResponse> rideResponseTestProbe = testKit.createTestProbe();
+        rideService1.tell(new RideService.RequestRide("201", 0L, 100L, rideResponseTestProbe.ref()));
+
+        RideService.RideResponse rideResponse = rideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
+        assertNotEquals(-1, rideResponse.rideId);
+
+        TestProbe<Cab.NumRideResponse> numRideResponseTestProbe = testKit.createTestProbe();
+        cab101.tell(new Cab.NumRides(numRideResponseTestProbe.ref()));
+
+        Cab.NumRideResponse numRideResponse = numRideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
+        assertEquals(1, numRideResponse.response);
+    }
+
+    @Test
+    public void cabTest3_2() {
+        /**
+         * This test should be run after cabTest3_1.
+         * It can be used to check the persistence functionality
+         * of the cab.
+         */
+
+        init();
 
         EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "101");
         TestProbe<Cab.NumRideResponse> numRideResponseTestProbe = testKit.createTestProbe();
@@ -301,6 +343,11 @@ public class TesterPhase2 {
         // Book ride again - this should not be allocated as we have to reject alternate ride.
         rideService1.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
         RideService.RideResponse rideResponseThree = rideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
+        assertEquals(-1, rideResponseThree.rideId);
+
+        // Book ride again - this should be allocated as we have to accept alternate ride.
+        rideService1.tell(new RideService.RequestRide("203", 200L, 300L, rideResponseTestProbe.ref()));
+        rideResponseThree = rideResponseTestProbe.receiveMessage(Duration.ofSeconds(10));
         assertNotEquals(-1, rideResponseThree.rideId);
 
         // Check if 101 has satisfied the ride or not - numRides should be two now.
