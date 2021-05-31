@@ -79,6 +79,12 @@ public class TesterPhase2 {
 
     @Test
     public void cabTest2_1() {
+        /**
+         * This test should be run just before cabTest2_2.
+         * It can be used to check the persistence functionality
+         * of the cab.
+         */
+
         init();
 
         EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "cab101");
@@ -105,6 +111,12 @@ public class TesterPhase2 {
 
     @Test
     public void cabTest2_2() {
+        /**
+         * This test should be run after cabTest2_1.
+         * It can be used to check the persistence functionality
+         * of the cab.
+         */
+
         init();
 
         EntityRef<Cab.Command> cab101 = cabSharding.entityRefFor(Cab.TypeKey, "cab101");
