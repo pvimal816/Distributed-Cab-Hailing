@@ -8,9 +8,40 @@ import akka.actor.typed.javadsl.Behaviors;
 import akka.actor.typed.javadsl.Receive;
 import akka.cluster.sharding.typed.javadsl.EntityTypeKey;
 
-public class RideService extends AbstractBehavior<RideService.Command> {
 
+import java.io.*;
+import java.util.ArrayList;
+
+public class RideService extends AbstractBehavior<RideService.Command> {    
     public static final EntityTypeKey<Command> TypeKey = EntityTypeKey.create(RideService.Command.class, "RideServiceEntity");
+    public static String input_file = "/Users/gokulnathpillai/Documents/GradSchool/PODS/Project 2/pods_project_02/IDs.txt";
+    ArrayList<String> customerIds;
+
+    public static ArrayList<String> readCustId(){
+        try{
+            File cabInfoFile = new File(input_file);
+            BufferedReader br = new BufferedReader(new FileReader(cabInfoFile));
+            String st;
+        
+            br.readLine();
+        
+            ArrayList<String> cabIds = new ArrayList<>();
+            ArrayList<String> custIds = new ArrayList<>();
+        
+            while ((st = br.readLine()) != null && !st.equals("****"))
+                cabIds.add(st);
+        
+            while ((st = br.readLine()) != null && !st.equals("****"))
+                custIds.add(st);
+
+            return custIds;
+        } catch(IOException e){
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+
 
     long fullFillRideActorCount=0L;
 
@@ -20,6 +51,7 @@ public class RideService extends AbstractBehavior<RideService.Command> {
 
     public RideService(String rideServiceInstanceId, ActorContext<Command> context) {
         super(context);
+        customerIds = readCustId();
         this.context = context;
         this.rideServiceInstanceId = rideServiceInstanceId;
     }
@@ -33,7 +65,7 @@ public class RideService extends AbstractBehavior<RideService.Command> {
 
     interface Command extends CborSerializable{}
 
-    public static final class RequestRide  implements Command {
+    public static final class RequestRide implements Command {
         String custId;
         long sourceLoc;
         long destinationLoc;
@@ -66,6 +98,15 @@ public class RideService extends AbstractBehavior<RideService.Command> {
     }
 
     public Behavior<Command> onRequestRide(RequestRide requestRide){
+
+        // Create an array of valid cabIds here and check that requestRide.custId is present in them.
+        // If not present, throw an error.
+
+        if(!customerIds.contains(requestRide.custId)){
+            System.err.println("[RideService.onRequestRide] Error, invalid customer id." + requestRide.custId);
+            return rideService();
+        }
+
         ActorRef<FulfillRide.Command> fulFillRideRef = context.spawn(FulfillRide.create(context.getSelf()),
                 "fulfill_ride_actor_"+rideServiceInstanceId+"_"+(fullFillRideActorCount++)
         );

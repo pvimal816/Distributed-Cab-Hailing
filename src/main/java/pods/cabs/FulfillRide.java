@@ -87,7 +87,7 @@ public class FulfillRide {
                 )))
         );
 
-        EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "cab" + nextCabToTry);
+        EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "" + nextCabToTry);
 
         rideId = counterValue.value;
         cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
@@ -107,7 +107,7 @@ public class FulfillRide {
                 replyTo.tell(new RideService.RideResponse(-1, "0", 0));
                 return Behaviors.stopped();
             }
-            EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "cab" + nextCabToTry);
+            EntityRef<Cab.Command> cab = sharding.entityRefFor(Cab.TypeKey, "" + nextCabToTry);
             cab.tell(new Cab.RequestRide(rideId, sourceLoc, destinationLoc, context.getSelf()));
         }
         return fulFillRide();
